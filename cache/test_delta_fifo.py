@@ -3,6 +3,7 @@ from multiprocessing.pool import ThreadPool
 from typing import Any, NamedTuple
 
 from .delta_fifo import DeltaFIFO
+from .fifo import RequeueError
 
 
 class TestDeltaFIFO(unittest.TestCase):
@@ -33,6 +34,34 @@ class TestDeltaFIFO(unittest.TestCase):
                     last_float = obj
                 else:
                     assert False, f"unexpected type {obj!r}"
+
+    def test_requeue_on_pop(self):
+        f = DeltaFIFO(test_fifo_object_key_func)
+        f.add(mk_fifo_obj("foo", 10))
+
+        def process(obj):
+            self.assertEqual(obj[0].object.name, "foo")
+            raise RequeueError
+
+        f.pop(process)
+        f.get_by_key("foo")
+
+        class TestError(Exception):
+            pass
+
+        def process(obj):
+            self.assertEqual(obj[0].object.name, "foo")
+            raise RequeueError(err=TestError)
+
+        with self.assertRaises(TestError):
+            f.pop(process)
+        f.get_by_key("foo")
+
+        def process(obj):
+            self.assertEqual(obj[0].object.name, "foo")
+
+        f.pop(process)
+        self.assertIsNone(f.get_by_key("foo"))
 
 
 def pop(queue):

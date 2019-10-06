@@ -2,6 +2,8 @@ import enum
 import threading
 from typing import Any, NamedTuple
 
+from .fifo import FIFOClosedError, RequeueError
+
 
 class DeltaType(enum.Enum):
     ADDED = "Added"
@@ -26,14 +28,6 @@ class Deltas(list):
 class DeletedFinalStateUnknown(NamedTuple):
     key: str
     obj: Any
-
-
-class FIFOClosedError(RuntimeError):
-    pass
-
-
-class RequeueError(RuntimeError):
-    pass
 
 
 class DeltaFIFO:
@@ -158,9 +152,10 @@ class DeltaFIFO:
                 item = self._items.pop(id_)
                 try:
                     process(item)
-                except RequeueError:
+                except RequeueError as e:
                     self._add_if_not_present(id_, item)
-                    raise
+                    if e.err:
+                        raise e.err
                 return item
 
     def add_if_not_present(self, obj):
