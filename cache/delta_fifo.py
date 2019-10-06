@@ -43,7 +43,7 @@ class DeltaFIFO:
         self._key_func = key_func
         self._known_objects = known_objects
         self._lock = threading.Lock()
-        self._condition = threading.Condition(lock=self._lock)
+        self._cond = threading.Condition(lock=self._lock)
         self._populated = False
         self._initial_population_count = 0
         self._closed = False
@@ -94,10 +94,10 @@ class DeltaFIFO:
             d = self._items.get(key)
             return d and _copy_deltas(d)
 
-    def replace(self, l, resource_version):
+    def replace(self, list_, resource_version):
         with self._lock:
             keys = set()
-            for item in l:
+            for item in list_:
                 key = self.key_of(item)
                 keys.add(key)
                 self._queue_action_locked(DeltaType.SYNC, item)
@@ -116,7 +116,7 @@ class DeltaFIFO:
                     )
                 if not self._populated:
                     self._populated = True
-                    self._initial_population_count = len(l) + queued_deletions
+                    self._initial_population_count = len(list_) + queued_deletions
                 return
             known_keys = self._known_objects.list_keys()
             queued_deletions = 0
@@ -133,7 +133,7 @@ class DeltaFIFO:
                 )
             if not self._populated:
                 self._populated = True
-                self._initial_population_count = len(l) + queued_deletions
+                self._initial_population_count = len(list_) + queued_deletions
 
     def resync(self):
         with self._lock:
@@ -149,7 +149,7 @@ class DeltaFIFO:
                 while not self._queue:
                     if self.is_closed():
                         raise FIFOClosedError
-                    self._condition.wait()
+                    self._cond.wait()
                 id_ = self._queue.pop(0)
                 if self._initial_population_count:
                     self._initial_population_count -= 1
@@ -177,7 +177,7 @@ class DeltaFIFO:
     def close(self):
         with self._closed_lock:
             self._closed = True
-            self._condition.notify_all()
+            self._cond.notify_all()
 
     def key_of(self, obj):
         if isinstance(obj, Deltas):
@@ -199,7 +199,7 @@ class DeltaFIFO:
             return
         self._queue.append(id_)
         self._items[id_] = deltas
-        self._condition.notify_all()
+        self._cond.notify_all()
 
     def _will_object_be_delete_locked(self, id_):
         deltas = self._items.get(id_)
@@ -215,7 +215,7 @@ class DeltaFIFO:
             if id_ not in self._items:
                 self._queue.append(id_)
             self._items[id_] = new_deltas
-            self._condition.notify_all()
+            self._cond.notify_all()
         else:
             del self._items[id_]
 
