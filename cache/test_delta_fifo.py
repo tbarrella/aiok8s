@@ -1,5 +1,6 @@
 import unittest
 from multiprocessing.pool import ThreadPool
+from queue import Empty, Queue
 from typing import Any, NamedTuple
 
 from .delta_fifo import DeltaFIFO
@@ -62,6 +63,30 @@ class TestDeltaFIFO(unittest.TestCase):
 
         f.pop(process)
         self.assertIsNone(f.get_by_key("foo"))
+
+    def test_add_update(self):
+        f = DeltaFIFO(test_fifo_object_key_func)
+        f.add(mk_fifo_obj("foo", 10))
+        f.update(mk_fifo_obj("foo", 12))
+        f.delete(mk_fifo_obj("foo", 15))
+
+        self.assertEqual(f.list(), [mk_fifo_obj("foo", 15)])
+        self.assertEqual(f.list_keys(), ["foo"])
+
+        got = Queue(maxsize=2)
+
+        def get_popped():
+            while True:
+                obj = test_pop(f)
+                got.put(obj)
+
+        with ThreadPool() as pool:
+            pool.apply_async(get_popped)
+            first = got.get()
+            self.assertEqual(first.val, 15)
+            with self.assertRaises(Empty):
+                got.get(timeout=0.05)
+            self.assertIsNone(f.get(mk_fifo_obj("foo", "")))
 
 
 def pop(queue):

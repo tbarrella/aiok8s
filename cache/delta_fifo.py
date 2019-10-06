@@ -5,31 +5,6 @@ from typing import Any, NamedTuple
 from .fifo import FIFOClosedError, RequeueError
 
 
-class DeltaType(enum.Enum):
-    ADDED = "Added"
-    UPDATED = "Updated"
-    DELETED = "Deleted"
-    SYNC = "Sync"
-
-
-class Delta(NamedTuple):
-    type: DeltaType
-    object: Any
-
-
-class Deltas(list):
-    def oldest(self):
-        return self[0] if self else None
-
-    def newest(self):
-        return self[-1] if self else None
-
-
-class DeletedFinalStateUnknown(NamedTuple):
-    key: str
-    obj: Any
-
-
 class DeltaFIFO:
     def __init__(self, key_func, known_objects=None):
         self._items = {}
@@ -225,6 +200,31 @@ class DeltaFIFO:
         if self._items.get(id_):
             return
         self._queue_action_locked(DeltaType.SYNC, obj)
+
+
+class DeltaType(enum.Enum):
+    ADDED = "Added"
+    UPDATED = "Updated"
+    DELETED = "Deleted"
+    SYNC = "Sync"
+
+
+class Delta(NamedTuple):
+    type: DeltaType
+    object: Any
+
+
+class Deltas(list):
+    def oldest(self):
+        return self[0] if self else None
+
+    def newest(self):
+        return self[-1] if self else None
+
+
+class DeletedFinalStateUnknown(NamedTuple):
+    key: str
+    obj: Any
 
 
 def _dedup_deltas(deltas):
