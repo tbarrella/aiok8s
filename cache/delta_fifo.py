@@ -2,7 +2,7 @@ import enum
 import threading
 from typing import Any, NamedTuple
 
-from .fifo import FIFOClosedError, RequeueError
+from .fifo import FIFOClosedError, ProcessError, RequeueError
 
 
 class DeltaFIFO:
@@ -131,6 +131,8 @@ class DeltaFIFO:
                     self._add_if_not_present(id_, item)
                     if e.err:
                         raise e.err
+                except Exception as e:
+                    raise ProcessError(item, e)
                 return item
 
     def add_if_not_present(self, obj):
