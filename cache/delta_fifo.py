@@ -173,13 +173,13 @@ class DeltaFIFO:
         self._items[id_] = deltas
         self._cond.notify_all()
 
-    def _will_object_be_delete_locked(self, id_):
+    def _will_object_be_deleted_locked(self, id_):
         deltas = self._items.get(id_)
         return deltas and deltas[-1].type is DeltaType.DELETED
 
     def _queue_action_locked(self, action_type, obj):
         id_ = self.key_of(obj)
-        if action_type is DeltaType.SYNC and self._will_object_be_delete_locked(id_):
+        if action_type is DeltaType.SYNC and self._will_object_be_deleted_locked(id_):
             return
         new_deltas = Deltas([*self._items.get(id_, []), Delta(action_type, obj)])
         new_deltas = _dedup_deltas(new_deltas)
