@@ -88,6 +88,41 @@ class TestDeltaFIFO(unittest.TestCase):
                 got.get(timeout=0.05)
             self.assertIsNone(f.get(mk_fifo_obj("foo", "")))
 
+    def test_enqueueing_no_lister(self):
+        f = DeltaFIFO(test_fifo_object_key_func)
+        f.add(mk_fifo_obj("foo", 10))
+        f.update(mk_fifo_obj("bar", 15))
+        f.add(mk_fifo_obj("qux", 17))
+        f.delete(mk_fifo_obj("qux", 18))
+
+        f.delete(mk_fifo_obj("baz", 20))
+
+        expect_list = [10, 15, 18]
+        for expect in expect_list:
+            self.assertEqual(test_pop(f).val, expect)
+        self.assertEqual(len(f._items), 0)
+
+    def test_enqueueing_with_lister(self):
+        f = DeltaFIFO(
+            test_fifo_object_key_func,
+            known_objects=KeyLookupFunc(
+                lambda: [
+                    mk_fifo_obj("foo", 5),
+                    mk_fifo_obj("bar", 6),
+                    mk_fifo_obj("baz", 7),
+                ]
+            ),
+        )
+        f.add(mk_fifo_obj("foo", 10))
+        f.update(mk_fifo_obj("bar", 15))
+
+        f.delete(mk_fifo_obj("baz", 20))
+
+        expect_list = [10, 15, 20]
+        for expect in expect_list:
+            self.assertEqual(test_pop(f).val, expect)
+        self.assertEqual(len(f._items), 0)
+
 
 def pop(queue):
     result = None
@@ -115,6 +150,20 @@ def mk_fifo_obj(name, val):
 
 def test_pop(f):
     return pop(f).newest().object
+
+
+class KeyLookupFunc:
+    def __init__(self, f):
+        self._f = f
+
+    def list_keys(self):
+        return [fifo_obj.name for fifo_obj in self._f()]
+
+    def get_by_key(self, key):
+        for v in self._f():
+            if v.name == key:
+                return v
+        return None
 
 
 if __name__ == "__main__":
