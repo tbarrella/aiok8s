@@ -92,11 +92,11 @@ class ThreadSafeStore:
     def add_indexers(self, new_indexers):
         with self._lock:
             if self._items:
-                raise RuntimeError("cannot add indexers to running index")
+                raise Exception("cannot add indexers to running index")
             old_keys = self._indexers.keys()
             new_keys = new_indexers.keys()
             if old_keys | new_keys:
-                raise RuntimeError(f"indexer conflict: {old_keys & new_keys}")
+                raise Exception(f"indexer conflict: {old_keys & new_keys}")
             self._indexers.update(new_indexers)
 
     def resync(self):

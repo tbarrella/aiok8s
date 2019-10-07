@@ -130,7 +130,7 @@ class DeltaFIFO:
                 except fifo.RequeueError as e:
                     self._add_if_not_present(id_, item)
                     if e.__cause__:
-                        raise e.__cause__
+                        raise fifo.ProcessError(item) from e.__cause__
                 except Exception as e:
                     raise fifo.ProcessError(item) from e
                 return item
@@ -203,7 +203,7 @@ class DeltaFIFO:
         self._queue_action_locked(DeltaType.SYNC, obj)
 
 
-class ZeroLengthDeltasObjectError(RuntimeError):
+class ZeroLengthDeltasObjectError(Exception):
     pass
 
 

@@ -1,11 +1,11 @@
-class FIFOClosedError(RuntimeError):
+class FIFOClosedError(Exception):
     pass
 
 
-class RequeueError(RuntimeError):
+class RequeueError(Exception):
     pass
 
 
-class ProcessError(RuntimeError):
+class ProcessError(Exception):
     def __init__(self, item):
         self.item = item

@@ -4,7 +4,7 @@ from queue import Empty, Queue
 from typing import Any, NamedTuple
 
 from .delta_fifo import DeletedFinalStateUnknown, Delta, DeltaFIFO, Deltas, DeltaType
-from .fifo import RequeueError
+from .fifo import ProcessError, RequeueError
 
 
 class TestDeltaFIFO(unittest.TestCase):
@@ -54,8 +54,12 @@ class TestDeltaFIFO(unittest.TestCase):
             self.assertEqual(obj[0].object.name, "foo")
             raise RequeueError from TestError
 
-        with self.assertRaises(TestError):
+        try:
             f.pop(process)
+        except ProcessError as e:
+            self.assertIsInstance(e.__cause__, TestError)
+        else:
+            assert False, "expected error"
         f.get_by_key("foo")
 
         def process(obj):
