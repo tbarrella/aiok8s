@@ -2,7 +2,7 @@ import enum
 import threading
 from typing import Any, NamedTuple
 
-from .fifo import FIFOClosedError, ProcessError, RequeueError
+from . import fifo
 
 
 class DeltaFIFO:
@@ -117,7 +117,7 @@ class DeltaFIFO:
             while True:
                 while not self._queue:
                     if self.is_closed():
-                        raise FIFOClosedError
+                        raise fifo.FIFOClosedError
                     self._cond.wait()
                 id_ = self._queue.pop(0)
                 if self._initial_population_count:
@@ -127,12 +127,12 @@ class DeltaFIFO:
                 item = self._items.pop(id_)
                 try:
                     process(item)
-                except RequeueError as e:
+                except fifo.RequeueError as e:
                     self._add_if_not_present(id_, item)
                     if e.err:
                         raise e.err
                 except Exception as e:
-                    raise ProcessError(item, e)
+                    raise fifo.ProcessError(item, e)
                 return item
 
     def add_if_not_present(self, obj):
@@ -154,7 +154,6 @@ class DeltaFIFO:
     def key_of(self, obj):
         if isinstance(obj, Deltas):
             if not obj:
-                # TODO
                 raise KeyError
             obj = obj.newest().object
         if isinstance(obj, DeletedFinalStateUnknown):
