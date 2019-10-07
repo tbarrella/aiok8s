@@ -22,7 +22,7 @@ class ThreadSafeStore:
             self._items[key] = obj
             self._update_indices(old_object, obj, key)
 
-    def delete(self, key):
+    def delete(self, key, obj):
         with self._lock:
             try:
                 obj = self._items[key]
@@ -55,12 +55,14 @@ class ThreadSafeStore:
         with self._lock:
             index_func = self._indexers[index_name]
             index_keys = index_func(obj)
-            index = self._indices[index_name]
+            index = self._indices.get(index_name, _index.Index())
             if len(index_keys) == 1:
-                return_key_set = index[index_keys[0]]
+                return_key_set = index.get(index_keys[0], set())
             else:
                 return_key_set = {
-                    key for index_key in index_keys for key in index[index_key]
+                    key
+                    for index_key in index_keys
+                    for key in index.get(index_key, set())
                 }
             return [self._items[absolute_key] for absolute_key in return_key_set]
 
@@ -68,13 +70,13 @@ class ThreadSafeStore:
         with self._lock:
             if index_name not in self._indexers:
                 raise KeyError(f"Index with name {index_name} does not exist")
-            index = self._indices[index_name]
-            set_ = index[index_key]
+            index = self._indices.get(index_name, _index.Index())
+            set_ = index.get(index_key, set())
             return list(set_)
 
     def list_index_func_values(self, index_name):
         with self._lock:
-            index = self._indices[index_name]
+            index = self._indices.get(index_name, _index.Index())
             names = list(index)
             return names
 
@@ -82,8 +84,8 @@ class ThreadSafeStore:
         with self._lock:
             if index_name not in self._indexers:
                 raise KeyError(f"Index with name {index_name} does not exist")
-            index = self._indices[index_name]
-            set_ = index[index_key]
+            index = self._indices.get(index_name, _index.Index())
+            set_ = index.get(index_key, set())
             return [self._items[key] for key in set_]
 
     def get_indexers(self):

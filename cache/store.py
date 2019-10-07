@@ -8,7 +8,7 @@ class StoreKeyError(KeyError):
 
 def new_store(key_func):
     return _Cache(
-        thread_safe_store.ThreadSafeStore(index.Indexers, index.Indices()), key_func
+        thread_safe_store.ThreadSafeStore(index.Indexers(), index.Indices()), key_func
     )
 
 
