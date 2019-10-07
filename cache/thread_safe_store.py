@@ -3,7 +3,11 @@ import threading
 from . import index as _index
 
 
-class ThreadSafeStore:
+def new_thread_safe_store(indexers, indices):
+    return _ThreadSafeMap(indexers, indices)
+
+
+class _ThreadSafeMap:
     def __init__(self, indexers, indices):
         self._lock = threading.Lock()
         self._items = {}
