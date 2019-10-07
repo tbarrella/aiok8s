@@ -11,6 +11,7 @@ class DeltaFIFO:
         self._queue = []
         self._key_func = key_func
         self._known_objects = known_objects
+        # TODO: RWLock
         self._lock = threading.Lock()
         self._cond = threading.Condition(lock=self._lock)
         self._populated = False
