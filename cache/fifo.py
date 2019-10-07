@@ -3,11 +3,9 @@ class FIFOClosedError(RuntimeError):
 
 
 class RequeueError(RuntimeError):
-    def __init__(self, err=None):
-        self.err = err
+    pass
 
 
 class ProcessError(RuntimeError):
-    def __init__(self, item, err):
+    def __init__(self, item):
         self.item = item
-        self.err = err

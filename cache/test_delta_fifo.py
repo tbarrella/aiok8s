@@ -52,7 +52,7 @@ class TestDeltaFIFO(unittest.TestCase):
 
         def process(obj):
             self.assertEqual(obj[0].object.name, "foo")
-            raise RequeueError(err=TestError)
+            raise RequeueError from TestError
 
         with self.assertRaises(TestError):
             f.pop(process)

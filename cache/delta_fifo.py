@@ -129,10 +129,10 @@ class DeltaFIFO:
                     process(item)
                 except fifo.RequeueError as e:
                     self._add_if_not_present(id_, item)
-                    if e.err:
-                        raise e.err
+                    if e.__cause__:
+                        raise e.__cause__
                 except Exception as e:
-                    raise fifo.ProcessError(item, e)
+                    raise fifo.ProcessError(item) from e
                 return item
 
     def add_if_not_present(self, obj):
