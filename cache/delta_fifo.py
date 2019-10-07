@@ -2,7 +2,7 @@ import enum
 import threading
 from typing import Any, NamedTuple
 
-from . import fifo
+from . import fifo, store
 
 
 class DeltaFIFO:
@@ -154,7 +154,7 @@ class DeltaFIFO:
     def key_of(self, obj):
         if isinstance(obj, Deltas):
             if not obj:
-                raise KeyError("0-length Deltas object; can't get key")
+                raise store.StoreKeyError(obj) from ZeroLengthDeltasObjectError
             obj = obj.newest().object
         if isinstance(obj, DeletedFinalStateUnknown):
             return obj.key
@@ -201,6 +201,10 @@ class DeltaFIFO:
         if self._items.get(id_):
             return
         self._queue_action_locked(DeltaType.SYNC, obj)
+
+
+class ZeroLengthDeltasObjectError(RuntimeError):
+    pass
 
 
 class DeltaType(enum.Enum):

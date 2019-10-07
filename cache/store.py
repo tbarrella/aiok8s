@@ -1,6 +1,11 @@
 from . import index, thread_safe_store
 
 
+class StoreKeyError(KeyError):
+    def __init__(self, obj):
+        self.obj = obj
+
+
 def new_store(key_func):
     return _Cache(
         thread_safe_store.ThreadSafeStore(index.Indexers, index.Indices()), key_func
@@ -22,21 +27,21 @@ class _Cache:
         try:
             key = self._key_func(obj)
         except Exception as e:
-            raise KeyError from e
+            raise StoreKeyError(obj) from e
         self._cache_storage.add(key, obj)
 
     def update(self, obj):
         try:
             key = self._key_func(obj)
         except Exception as e:
-            raise KeyError from e
+            raise StoreKeyError(obj) from e
         self._cache_storage.update(key, obj)
 
     def delete(self, obj):
         try:
             key = self._key_func(obj)
         except Exception as e:
-            raise KeyError from e
+            raise StoreKeyError(obj) from e
         self._cache_storage.delete(key, obj)
 
     def list(self):
@@ -49,7 +54,7 @@ class _Cache:
         try:
             key = self._key_func(obj)
         except Exception as e:
-            raise KeyError from e
+            raise StoreKeyError(obj) from e
         return self.get_by_key(key)
 
     def get_by_key(self, key):
@@ -59,10 +64,9 @@ class _Cache:
         items = {}
         for item in list_:
             try:
-                key = self._key_func(obj)
+                key = self._key_func(item)
             except Exception as e:
-                # TODO: Include item
-                raise KeyError from e
+                raise StoreKeyError(item) from e
             items[key] = item
         self._cache_storage.replace(items, resource_version)
 
