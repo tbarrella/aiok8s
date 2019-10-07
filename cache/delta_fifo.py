@@ -52,7 +52,7 @@ class DeltaFIFO:
 
     def list_keys(self):
         with self._lock:
-            return list(self._items.keys())
+            return list(self._items)
 
     def get(self, obj):
         key = self.key_of(obj)
@@ -154,7 +154,7 @@ class DeltaFIFO:
     def key_of(self, obj):
         if isinstance(obj, Deltas):
             if not obj:
-                raise KeyError
+                raise KeyError("0-length Deltas object; can't get key")
             obj = obj.newest().object
         if isinstance(obj, DeletedFinalStateUnknown):
             return obj.key
