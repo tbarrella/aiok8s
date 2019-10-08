@@ -17,9 +17,7 @@ def jitter_until(f, period, jitter_factor, sliding, stop_event):
         select.put(None)
 
     threading.Thread(target=stop).start()
-    while True:
-        if stop_event.is_set():
-            return
+    while not stop_event.is_set():
         if jitter_factor > 0:
             jittered_period = jitter(period, jitter_factor)
         else:
