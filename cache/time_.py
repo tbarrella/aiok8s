@@ -10,6 +10,9 @@ class Timer:
         def function():
             self.c.put(time.time())
 
-        timer = threading.Timer(d, function)
-        timer.daemon = True
-        timer.start()
+        self._timer = threading.Timer(d, function)
+        self._timer.daemon = True
+        self._timer.start()
+
+    def stop(self):
+        self._timer.cancel()
