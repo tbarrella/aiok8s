@@ -35,7 +35,7 @@ def jitter_until(f, period, jitter_factor, sliding, stop_event):
             t.c.get()
             select.put(None)
 
-        threading.Thread(target=time_out).start()
+        threading.Thread(target=time_out, daemon=True).start()
         select.get()
 
 

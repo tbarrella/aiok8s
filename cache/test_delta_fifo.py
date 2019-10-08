@@ -1,6 +1,6 @@
+import queue
 import unittest
 from multiprocessing.pool import ThreadPool
-from queue import Empty, Queue
 from typing import Any, NamedTuple
 
 from .delta_fifo import DeletedFinalStateUnknown, Delta, DeltaFIFO, Deltas, DeltaType
@@ -77,7 +77,7 @@ class TestDeltaFIFO(unittest.TestCase):
         self.assertEqual(f.list(), [mk_fifo_obj("foo", 15)])
         self.assertEqual(f.list_keys(), ["foo"])
 
-        got = Queue(maxsize=2)
+        got = queue.Queue(maxsize=2)
 
         def get_popped():
             while True:
@@ -88,7 +88,7 @@ class TestDeltaFIFO(unittest.TestCase):
             pool.apply_async(get_popped)
             first = got.get()
             self.assertEqual(first.val, 15)
-            with self.assertRaises(Empty):
+            with self.assertRaises(queue.Empty):
                 got.get(timeout=0.05)
             self.assertIsNone(f.get(mk_fifo_obj("foo", "")))
 
@@ -131,7 +131,7 @@ class TestDeltaFIFO(unittest.TestCase):
         f = DeltaFIFO(test_fifo_object_key_func)
         f.add(mk_fifo_obj("foo", 10))
         f.replace([mk_fifo_obj("foo", 15)], "0")
-        got = Queue(maxsize=2)
+        got = queue.Queue(maxsize=2)
 
         def get_popped():
             while True:
@@ -141,7 +141,7 @@ class TestDeltaFIFO(unittest.TestCase):
             pool.apply_async(get_popped)
             first = got.get()
             self.assertEqual(first.val, 15)
-            with self.assertRaises(Empty):
+            with self.assertRaises(queue.Empty):
                 got.get(timeout=0.05)
             self.assertIsNone(f.get(mk_fifo_obj("foo", "")))
 
@@ -340,14 +340,14 @@ class TestDeltaFIFO(unittest.TestCase):
             self.assertEqual(f.has_synced(), test["expected_synced"])
 
 
-def pop(queue):
+def pop(queue_):
     result = None
 
     def process(obj):
         nonlocal result
         result = obj
 
-    queue.pop(process)
+    queue_.pop(process)
     return result
 
 
