@@ -6,6 +6,18 @@ class StoreKeyError(KeyError):
         self.obj = obj
 
 
+class ExplicitKey(str):
+    pass
+
+
+def meta_namespace_key_func(obj):
+    if isinstance(obj, ExplicitKey):
+        return str(obj)
+    meta = obj.metadata
+    if meta.namespace:
+        return f"{meta.namespace}/{meta.name}"
+
+
 def new_store(key_func):
     return _Cache(
         thread_safe_store.new_thread_safe_store(index.Indexers(), index.Indices()),

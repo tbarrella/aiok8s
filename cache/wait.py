@@ -4,6 +4,9 @@ import threading
 
 from . import time_
 
+FOREVER_TEST_TIMEOUT = 30
+NeverStop = threading.Event()
+
 
 def until(f, period, stop_event):
     jitter_until(f, period, 0, True, stop_event)

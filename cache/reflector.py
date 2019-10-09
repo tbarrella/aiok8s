@@ -31,12 +31,13 @@ class Reflector:
         list_queue = queue.Queue(maxsize=1)
         cancel_event = threading.Event()
 
-        def stop():
-            stop_event.wait()
-            list_queue.put(None)
-            cancel_event.set()
+        class Stop(threading.Thread):
+            daemon = True
 
-        threading.Thread(target=stop).start()
+            def run(self):
+                stop_event.wait()
+                list_queue.put(None)
+                cancel_event.set()
 
         def list_target():
             try:
@@ -46,7 +47,10 @@ class Reflector:
             else:
                 list_queue.put(list_)
 
-        threading.Thread(target=list_target).start()
+        Stop().start()
+        t = threading.Thread(target=list_target)
+        t.daemon = True
+        t.start()
         r = list_queue.get()
         if stop_event.is_set():
             return
@@ -59,6 +63,13 @@ class Reflector:
         self._set_last_sync_resource_version(resource_version)
 
         resync_error_queue = queue.Queue(maxsize=1)
+
+        class Stop(threading.Thread):
+            daemon = True
+
+            def run(self):
+                stop_event.wait()
+                select.put(StopRequestedError())
 
         def resync_target():
             resync_select = queue.Queue(maxsize=2)
@@ -89,7 +100,9 @@ class Reflector:
             finally:
                 cleanup()
 
-        threading.Thread(target=resync_target).start()
+        t = threading.Thread(target=resync_target)
+        t.daemon = True
+        t.start()
         try:
             while not stop_event.is_set():
                 timeout_seconds = _MIN_WATCH_TIMEOUT * (random.random() + 1)
@@ -137,21 +150,30 @@ class Reflector:
         event_count = 0
         select = queue.Queue(maxsize=3)
 
-        def stop():
-            stop_event.wait()
-            select.put(StopRequestedError())
+        class Stop(threading.Thread):
+            daemon = True
 
-        def error():
-            select.put(error_queue.get())
+            def run(self):
+                stop_event.wait()
+                select.put(StopRequestedError())
 
-        def forward():
-            for event in w:
-                select.put(w)
-            select.put(None)
+        class Error(threading.Thread):
+            daemon = True
 
-        threading.Thread(target=stop).start()
-        threading.Thread(target=error).start()
-        threading.Thread(target=forward).start()
+            def run(self):
+                select.put(error_queue.get())
+
+        class Forward(threading.Thread):
+            daemon = True
+
+            def run(self):
+                for event in w:
+                    select.put(event)
+                select.put(None)
+
+        Stop().start()
+        Error().start()
+        Forward().start()
         try:
             while True:
                 event = select.get()
@@ -159,7 +181,7 @@ class Reflector:
                     raise event
                 if event is None:
                     break
-                if event["type"] == watch.WatchType.ERROR:
+                if event["type"] == watch.EventType.ERROR:
                     raise Exception
                 if self._expected_type is not None and not isinstance(
                     event["object"], self._expected_type
@@ -171,17 +193,17 @@ class Reflector:
                 except AttributeError:
                     continue
                 new_resource_version = meta.resource_version
-                if event["type"] == watch.WatchType.ADDED:
+                if event["type"] == watch.EventType.ADDED:
                     try:
                         self._store.add(event["object"])
                     except Exception:
                         pass
-                elif event["type"] == watch.WatchType.MODIFIED:
+                elif event["type"] == watch.EventType.MODIFIED:
                     try:
                         self._store.update(event["object"])
                     except Exception:
                         pass
-                elif event["type"] == watch.WatchType.DELETED:
+                elif event["type"] == watch.EventType.DELETED:
                     try:
                         self._store.delete(event["object"])
                     except Exception:
@@ -190,7 +212,7 @@ class Reflector:
                 self._set_last_sync_resource_version(new_resource_version)
                 event_count += 1
             watch_duration = self._clock.since(start)
-            if watch_duration < 1 && not event_count:
+            if watch_duration < 1 and not event_count:
                 raise Exception
         finally:
             w.stop()
