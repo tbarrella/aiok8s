@@ -1,0 +1,6 @@
+class EventType:
+    ADDED = "ADDED"
+    MODIFIED = "MODIFIED"
+    DELETED = "DELETED"
+    BOOKMARK = "BOOKMARK"
+    ERROR = "ERROR"
