@@ -58,16 +58,23 @@ class Reflector:
         resync_exception_queue = queue.Queue(maxsize=1)
 
         def resync_target():
+            resync_select = queue.Queue(maxsize=2)
             resync_queue, cleanup = self._resync_queue()
 
             def cancel():
-                nonlocal resync_queue
                 cancel_event.wait()
-                resync_queue.put(False)
+                resync_select.put(None)
+
+            def forward(resync_queue):
+                while True:
+                    resync_select.put(resync_queue.get())
 
             threading.Thread(target=cancel).start()
+            threading.Thread(target=forward, args=(resync_queue,)).start()
             try:
-                while resync_queue.get() is not False:
+                while resync_select.get():
+                    if cancel_event.is_set():
+                        return
                     if self.should_resync is None or self.should_resync():
                         try:
                             self._store.resync()
@@ -76,6 +83,7 @@ class Reflector:
                             return
                     cleanup()
                     resync_queue, cleanup = self._resync_queue()
+                    threading.Thread(target=forward, args=(resync_queue,)).start()
             finally:
                 cleanup()
 
