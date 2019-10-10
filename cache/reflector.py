@@ -85,7 +85,9 @@ class Reflector:
                             return
                     cleanup()
                     resync_queue, cleanup = self._resync_queue()
-                    threading.Thread(target=forward, args=(resync_queue,)).start()
+                    threading.Thread(
+                        target=forward, args=(resync_queue,), daemon=True
+                    ).start()
             finally:
                 cleanup()
 

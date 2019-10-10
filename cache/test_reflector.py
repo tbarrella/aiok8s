@@ -24,15 +24,38 @@ class TestReflector(unittest.TestCase):
         r = Reflector(lister_watcher, V1Pod(), new_store(meta_namespace_key_func), 0)
         threading.Thread(target=r.list_and_watch, args=(NeverStop,)).start()
         fw.error(pod)
-        event = threading.Event()
+        timeout_event = threading.Event()
 
         def target():
             with self.assertRaises(StopIteration):
                 next(fw)
-            event.set()
+            timeout_event.set()
 
         threading.Thread(target=target).start()
-        event.wait(timeout=FOREVER_TEST_TIMEOUT)
+        timeout_event.wait(timeout=FOREVER_TEST_TIMEOUT)
+
+    def test_run_until(self):
+        stop_event = threading.Event()
+        store = new_store(meta_namespace_key_func)
+        fw = new_fake()
+
+        def list_func(**options):
+            return V1PodList(metadata=V1ListMeta(resource_version="1"), items=[])
+
+        lister_watcher = TestLW(list_func, lambda **_: fw)
+        r = Reflector(lister_watcher, V1Pod(), store, 0)
+        threading.Thread(target=r.run, args=(stop_event,)).start()
+        fw.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
+        stop_event.set()
+        timeout_event = threading.Event()
+
+        def target():
+            with self.assertRaises(StopIteration):
+                next(fw)
+            timeout_event.set()
+
+        threading.Thread(target=target).start()
+        timeout_event.wait(timeout=FOREVER_TEST_TIMEOUT)
 
 
 class TestLW:
