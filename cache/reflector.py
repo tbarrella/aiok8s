@@ -31,13 +31,10 @@ class Reflector:
         list_queue = queue.Queue(maxsize=1)
         cancel_event = threading.Event()
 
-        class Stop(threading.Thread):
-            daemon = True
-
-            def run(self):
-                stop_event.wait()
-                list_queue.put(None)
-                cancel_event.set()
+        def stop():
+            stop_event.wait()
+            list_queue.put(None)
+            cancel_event.set()
 
         def list_target():
             try:
@@ -47,10 +44,8 @@ class Reflector:
             else:
                 list_queue.put(list_)
 
-        Stop().start()
-        t = threading.Thread(target=list_target)
-        t.daemon = True
-        t.start()
+        threading.Thread(target=stop, daemon=True).start()
+        threading.Thread(target=list_target, daemon=True).start()
         r = list_queue.get()
         if stop_event.is_set():
             return
@@ -64,13 +59,6 @@ class Reflector:
 
         resync_error_queue = queue.Queue(maxsize=1)
 
-        class Stop(threading.Thread):
-            daemon = True
-
-            def run(self):
-                stop_event.wait()
-                select.put(StopRequestedError())
-
         def resync_target():
             resync_select = queue.Queue(maxsize=2)
             resync_queue, cleanup = self._resync_queue()
@@ -83,9 +71,10 @@ class Reflector:
                 resync_select.put(resync_queue.get())
 
             threading.Thread(target=cancel).start()
-            threading.Thread(target=forward, args=(resync_queue,)).start()
+            threading.Thread(target=forward, args=(resync_queue,), daemon=True).start()
             try:
-                while resync_select.get():
+                while True:
+                    resync_select.get()
                     if cancel_event.is_set():
                         return
                     if self.should_resync is None or self.should_resync():
@@ -100,9 +89,7 @@ class Reflector:
             finally:
                 cleanup()
 
-        t = threading.Thread(target=resync_target)
-        t.daemon = True
-        t.start()
+        threading.Thread(target=resync_target).start()
         try:
             while not stop_event.is_set():
                 timeout_seconds = _MIN_WATCH_TIMEOUT * (random.random() + 1)
@@ -148,32 +135,23 @@ class Reflector:
     def _watch_handler(self, w, options, error_queue, stop_event):
         start = self._clock.now()
         event_count = 0
-        select = queue.Queue(maxsize=3)
+        select = queue.Queue()
 
-        class Stop(threading.Thread):
-            daemon = True
+        def stop():
+            stop_event.wait()
+            select.put(StopRequestedError())
 
-            def run(self):
-                stop_event.wait()
-                select.put(StopRequestedError())
+        def error():
+            select.put(error_queue.get())
 
-        class Error(threading.Thread):
-            daemon = True
+        def forward():
+            for event in w:
+                select.put(event)
+            select.put(None)
 
-            def run(self):
-                select.put(error_queue.get())
-
-        class Forward(threading.Thread):
-            daemon = True
-
-            def run(self):
-                for event in w:
-                    select.put(event)
-                select.put(None)
-
-        Stop().start()
-        Error().start()
-        Forward().start()
+        threading.Thread(target=stop, daemon=True).start()
+        threading.Thread(target=error, daemon=True).start()
+        threading.Thread(target=forward, daemon=True).start()
         try:
             while True:
                 event = select.get()
