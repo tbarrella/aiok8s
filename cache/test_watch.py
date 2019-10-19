@@ -1,11 +1,20 @@
-import threading
+import asyncio
 import unittest
 
 from .watch import EventType, new_fake
 
 
+def async_test(coro):
+    def wrapper(*args, **kwargs):
+        loop = asyncio.new_event_loop()
+        return loop.run_until_complete(coro(*args, **kwargs))
+
+    return wrapper
+
+
 class TestWatch(unittest.TestCase):
-    def test_fake(self):
+    @async_test
+    async def test_fake(self):
         f = new_fake()
 
         table = [
@@ -16,24 +25,25 @@ class TestWatch(unittest.TestCase):
             {"t": EventType.ERROR, "s": TestType("error: blah")},
         ]
 
-        def consumer(w):
-            for expect in table:
-                got = next(w)
+        async def consumer(w):
+            i = 0
+            async for got in w:
+                expect = table[i]
                 self.assertEqual(got["type"], expect["t"])
                 self.assertEqual(got["object"], expect["s"])
-            with self.assertRaises(StopIteration):
-                next(w)
+                i += 1
+            self.assertEqual(i, len(table))
 
-        def sender():
-            f.add(TestType("foo"))
-            f.action(EventType.MODIFIED, TestType("qux"))
-            f.modify(TestType("bar"))
-            f.delete(TestType("bar"))
-            f.error(TestType("error: blah"))
-            f.stop()
+        async def sender():
+            await f.add(TestType("foo"))
+            await f.action(EventType.MODIFIED, TestType("qux"))
+            await f.modify(TestType("bar"))
+            await f.delete(TestType("bar"))
+            await f.error(TestType("error: blah"))
+            await f.stop()
 
-        threading.Thread(target=sender).start()
-        consumer(f)
+        asyncio.ensure_future(sender())
+        await consumer(f)
 
 
 class TestType(str):
