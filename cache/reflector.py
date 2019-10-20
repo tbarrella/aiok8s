@@ -191,7 +191,7 @@ class Reflector:
             if watch_duration < 1 and not event_count:
                 raise Exception
         finally:
-            await w.stop()
+            w.stop()
 
     def _set_last_sync_resource_version(self, v):
         self._last_sync_resource_version = v

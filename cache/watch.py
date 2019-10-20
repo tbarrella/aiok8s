@@ -11,7 +11,8 @@ class EventType:
 
 class FakeWatcher:
     def __init__(self, result):
-        self.stopped = False
+        self._stopped = asyncio.Event()
+        self._task = asyncio.ensure_future(self._stopped.wait())
         self._result = result
         self._mutex = asyncio.Lock()
 
@@ -19,26 +20,27 @@ class FakeWatcher:
         return self
 
     async def __anext__(self):
-        if self.stopped:
-            raise StopAsyncIteration
-        event = await self._result.get()
-        self._result.task_done()
-        if event is None:
-            raise StopAsyncIteration
-        return event
+        event = asyncio.ensure_future(self._result.get())
+        while True:
+            done, _ = await asyncio.wait(
+                [event, self._task], return_when=asyncio.FIRST_COMPLETED
+            )
+            if self._stopped.is_set():
+                raise StopAsyncIteration
+            if event in done:
+                self._result.task_done()
+                return await event
 
-    async def stop(self):
-        async with self._mutex:
-            if not self.stopped:
-                await self._result.put(None)
-                self.stopped = True
+    def stop(self):
+        self._stopped.set()
 
     def is_stopped(self):
-        return self.stopped
+        return self._stopped.is_set()
 
     async def reset(self):
         async with self._mutex:
-            self.stopped = False
+            self._stopped.clear()
+            self._task = asyncio.ensure_future(self._stopped.wait())
             self._result = asyncio.Queue()
 
     async def add(self, obj):
@@ -54,8 +56,9 @@ class FakeWatcher:
         await self.action(EventType.ERROR, obj)
 
     async def action(self, action, obj):
-        await self._result.put({"type": action, "object": obj})
-        await self._result.join()
+        async with self._mutex:
+            await self._result.put({"type": action, "object": obj})
+            await self._result.join()
 
 
 def new_fake():
