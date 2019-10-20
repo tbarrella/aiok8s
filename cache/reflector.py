@@ -1,6 +1,5 @@
-import queue
+import asyncio
 import random
-import threading
 
 from . import clock, wait, watch
 
@@ -16,37 +15,35 @@ class Reflector:
         self._resync_period = resync_period
         self._clock = clock.RealClock()
         self._last_sync_resource_version = ""
-        # TODO: RWLock
-        self._last_sync_resource_version_mutex = threading.Lock()
         self._set_expected_type(expected_type)
 
-    def run(self, stop_event):
-        def f():
-            self.list_and_watch(stop_event)
+    async def run(self, stop_event):
+        async def f():
+            await self.list_and_watch(stop_event)
 
-        wait.until(f, self._period, stop_event)
+        await wait.until(f, self._period, stop_event)
 
-    def list_and_watch(self, stop_event):
+    async def list_and_watch(self, stop_event):
         options = {"resource_version": "0"}
-        list_queue = queue.Queue(maxsize=1)
-        cancel_event = threading.Event()
+        list_queue = asyncio.Queue(maxsize=1)
+        cancel_event = asyncio.Event()
 
-        def stop():
-            stop_event.wait()
-            list_queue.put(None)
+        async def stop():
+            await stop_event.wait()
+            await list_queue.put(None)
             cancel_event.set()
 
-        def list_target():
+        async def list_target():
             try:
                 list_ = self._lister_watcher.list(**options)
             except Exception as e:
-                list_queue.put(e)
+                await list_queue.put(e)
             else:
-                list_queue.put(list_)
+                await list_queue.put(list_)
 
-        threading.Thread(target=stop, daemon=True).start()
-        threading.Thread(target=list_target, daemon=True).start()
-        r = list_queue.get()
+        asyncio.ensure_future(stop())
+        asyncio.ensure_future(list_target())
+        r = await list_queue.get()
         if stop_event.is_set():
             return
         if isinstance(r, Exception):
@@ -54,44 +51,42 @@ class Reflector:
         list_meta = r.metadata
         resource_version = list_meta.resource_version
         items = r.items
-        self._sync_with(items, resource_version)
+        await self._sync_with(items, resource_version)
         self._set_last_sync_resource_version(resource_version)
 
-        resync_error_queue = queue.Queue(maxsize=1)
+        resync_error_queue = asyncio.Queue(maxsize=1)
 
-        def resync_target():
-            resync_select = queue.Queue(maxsize=2)
+        async def resync_target():
+            resync_select = asyncio.Queue(maxsize=2)
             resync_queue, cleanup = self._resync_queue()
 
-            def cancel():
-                cancel_event.wait()
-                resync_select.put(None)
+            async def cancel():
+                await cancel_event.wait()
+                await resync_select.put(None)
 
-            def forward(resync_queue):
-                resync_select.put(resync_queue.get())
+            async def forward(resync_queue):
+                await resync_select.put(await resync_queue.get())
 
-            threading.Thread(target=cancel).start()
-            threading.Thread(target=forward, args=(resync_queue,), daemon=True).start()
+            asyncio.ensure_future(cancel())
+            asyncio.ensure_future(forward(resync_queue))
             try:
                 while True:
-                    resync_select.get()
+                    await resync_select.get()
                     if cancel_event.is_set():
                         return
                     if self.should_resync is None or self.should_resync():
                         try:
-                            self._store.resync()
+                            await self._store.resync()
                         except Exception as e:
-                            resync_error_queue.put(e)
+                            await resync_error_queue.put(e)
                             return
                     cleanup()
                     resync_queue, cleanup = self._resync_queue()
-                    threading.Thread(
-                        target=forward, args=(resync_queue,), daemon=True
-                    ).start()
+                    asyncio.ensure_future(forward(resync_queue))
             finally:
                 cleanup()
 
-        threading.Thread(target=resync_target).start()
+        asyncio.ensure_future(resync_target())
         try:
             while not stop_event.is_set():
                 timeout_seconds = _MIN_WATCH_TIMEOUT * (random.random() + 1)
@@ -106,15 +101,16 @@ class Reflector:
                     # TODO: Handle ECONNREFUSED
                     return
                 try:
-                    self._watch_handler(w, options, resync_error_queue, stop_event)
+                    await self._watch_handler(
+                        w, options, resync_error_queue, stop_event
+                    )
                 except Exception:
                     return
         finally:
             cancel_event.set()
 
     def last_sync_resource_version(self, v):
-        with self._last_sync_resource_version_mutex:
-            return self._last_sync_resource_version
+        return self._last_sync_resource_version
 
     def _set_expected_type(self, expected_type):
         self._expected_type = type(expected_type)
@@ -126,37 +122,37 @@ class Reflector:
 
     def _resync_queue(self):
         if not self._resync_period:
-            return queue.Queue(), lambda: False
+            return asyncio.Queue(), lambda: False
         t = self._clock.new_timer(self._resync_period)
         return t.c(), t.stop
 
-    def _sync_with(self, items, resource_version):
+    async def _sync_with(self, items, resource_version):
         found = list(items)
-        self._store.replace(found, resource_version)
+        await self._store.replace(found, resource_version)
 
-    def _watch_handler(self, w, options, error_queue, stop_event):
+    async def _watch_handler(self, w, options, error_queue, stop_event):
         start = self._clock.now()
         event_count = 0
-        select = queue.Queue()
+        select = asyncio.Queue()
 
-        def stop():
-            stop_event.wait()
-            select.put(StopRequestedError())
+        async def stop():
+            await stop_event.wait()
+            await select.put(StopRequestedError())
 
-        def error():
-            select.put(error_queue.get())
+        async def error():
+            await select.put(await error_queue.get())
 
-        def forward():
-            for event in w:
-                select.put(event)
-            select.put(None)
+        async def forward():
+            async for event in w:
+                await select.put(event)
+            await select.put(None)
 
-        threading.Thread(target=stop, daemon=True).start()
-        threading.Thread(target=error, daemon=True).start()
-        threading.Thread(target=forward, daemon=True).start()
+        asyncio.ensure_future(stop())
+        asyncio.ensure_future(error())
+        asyncio.ensure_future(forward())
         try:
             while True:
-                event = select.get()
+                event = await select.get()
                 if isinstance(event, Exception):
                     raise event
                 if event is None:
@@ -175,17 +171,17 @@ class Reflector:
                 new_resource_version = meta.resource_version
                 if event["type"] == watch.EventType.ADDED:
                     try:
-                        self._store.add(event["object"])
+                        await self._store.add(event["object"])
                     except Exception:
                         pass
                 elif event["type"] == watch.EventType.MODIFIED:
                     try:
-                        self._store.update(event["object"])
+                        await self._store.update(event["object"])
                     except Exception:
                         pass
                 elif event["type"] == watch.EventType.DELETED:
                     try:
-                        self._store.delete(event["object"])
+                        await self._store.delete(event["object"])
                     except Exception:
                         pass
                 options["resource_version"] = new_resource_version
@@ -195,11 +191,10 @@ class Reflector:
             if watch_duration < 1 and not event_count:
                 raise Exception
         finally:
-            w.stop()
+            await w.stop()
 
     def _set_last_sync_resource_version(self, v):
-        with self._last_sync_resource_version_mutex:
-            self._last_sync_resource_version = v
+        self._last_sync_resource_version = v
 
 
 _DEFAULT_EXPECTED_TYPE_NAME = "<unspecified>"

@@ -16,7 +16,6 @@ class DeltaFIFO:
         self._populated = False
         self._initial_population_count = 0
         self._closed = False
-        self._closed_lock = asyncio.Lock()
 
     async def add(self, obj):
         async with self._lock:

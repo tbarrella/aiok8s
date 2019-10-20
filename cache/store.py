@@ -36,26 +36,26 @@ class _Cache:
         self._cache_storage = cache_storage
         self._key_func = key_func
 
-    def add(self, obj):
+    async def add(self, obj):
         try:
             key = self._key_func(obj)
         except Exception as e:
             raise StoreKeyError(obj) from e
-        self._cache_storage.add(key, obj)
+        await self._cache_storage.add(key, obj)
 
-    def update(self, obj):
+    async def update(self, obj):
         try:
             key = self._key_func(obj)
         except Exception as e:
             raise StoreKeyError(obj) from e
-        self._cache_storage.update(key, obj)
+        await self._cache_storage.update(key, obj)
 
-    def delete(self, obj):
+    async def delete(self, obj):
         try:
             key = self._key_func(obj)
         except Exception as e:
             raise StoreKeyError(obj) from e
-        self._cache_storage.delete(key, obj)
+        await self._cache_storage.delete(key, obj)
 
     def list(self):
         return self._cache_storage.list()
@@ -73,7 +73,7 @@ class _Cache:
     def get_by_key(self, key):
         return self._cache_storage.get(key)
 
-    def replace(self, list_, resource_version):
+    async def replace(self, list_, resource_version):
         items = {}
         for item in list_:
             try:
@@ -81,25 +81,25 @@ class _Cache:
             except Exception as e:
                 raise StoreKeyError(item) from e
             items[key] = item
-        self._cache_storage.replace(items, resource_version)
+        await self._cache_storage.replace(items, resource_version)
 
-    def resync(self):
-        self._cache_storage.resync()
+    async def resync(self):
+        await self._cache_storage.resync()
 
     def get_indexers(self):
         return self._cache_storage.get_indexers()
 
-    def index(self, index_name, obj):
-        return self._cache_storage.index(index_name, obj)
+    async def index(self, index_name, obj):
+        return await self._cache_storage.index(index_name, obj)
 
-    def index_keys(self, index_name, index_key):
-        return self._cache_storage.index_keys(index_name, index_key)
+    async def index_keys(self, index_name, index_key):
+        return await self._cache_storage.index_keys(index_name, index_key)
 
-    def list_index_func_values(self, index_name):
-        return self._cache_storage.list_index_func_values(index_name)
+    async def list_index_func_values(self, index_name):
+        return await self._cache_storage.list_index_func_values(index_name)
 
-    def by_index(self, index_name, index_key):
-        return self._cache_storage.by_index(index_name, index_key)
+    async def by_index(self, index_name, index_key):
+        return await self._cache_storage.by_index(index_name, index_key)
 
-    def add_indexers(self, new_indexers):
-        self._cache_storage.add_indexers(new_indexers)
+    async def add_indexers(self, new_indexers):
+        await self._cache_storage.add_indexers(new_indexers)

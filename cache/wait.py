@@ -4,7 +4,6 @@ import random
 from . import time_
 
 FOREVER_TEST_TIMEOUT = 30
-NeverStop = asyncio.Event()
 
 
 async def until(f, period, stop_event):

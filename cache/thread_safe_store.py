@@ -102,7 +102,7 @@ class _ThreadSafeMap:
                 raise Exception(f"indexer conflict: {old_keys & new_keys}")
             self._indexers.update(new_indexers)
 
-    def resync(self):
+    async def resync(self):
         pass
 
     def _update_indices(self, old_obj, new_obj, key):

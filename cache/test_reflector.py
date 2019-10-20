@@ -1,4 +1,4 @@
-import threading
+import asyncio
 import unittest
 
 from kubernetes.client.models.v1_list_meta import V1ListMeta
@@ -8,12 +8,60 @@ from kubernetes.client.models.v1_pod_list import V1PodList
 
 from .reflector import Reflector
 from .store import meta_namespace_key_func, new_store
-from .wait import FOREVER_TEST_TIMEOUT, NeverStop
+from .wait import FOREVER_TEST_TIMEOUT
 from .watch import new_fake
 
 
+def run(main, *, debug=False):
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        loop.set_debug(debug)
+        return loop.run_until_complete(main)
+    finally:
+        try:
+            _cancel_all_tasks(loop)
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
+
+
+def _cancel_all_tasks(loop):
+    to_cancel = asyncio.all_tasks(loop)
+    if not to_cancel:
+        return
+
+    for task in to_cancel:
+        task.cancel()
+
+    loop.run_until_complete(
+        asyncio.gather(*to_cancel, loop=loop, return_exceptions=True)
+    )
+
+    for task in to_cancel:
+        if task.cancelled():
+            continue
+        if task.exception() is not None:
+            loop.call_exception_handler(
+                {
+                    "message": "unhandled exception during asyncio.run() shutdown",
+                    "exception": task.exception(),
+                    "task": task,
+                }
+            )
+
+
+def async_test(coro):
+    def wrapper(*args, **kwargs):
+        return run(coro(*args, **kwargs))
+
+    return wrapper
+
+
 class TestReflector(unittest.TestCase):
-    def test_close_watch_on_error(self):
+    @async_test
+    async def test_close_watch_on_error(self):
         pod = V1Pod(metadata=V1ObjectMeta(name="bar"))
         fw = new_fake()
 
@@ -22,20 +70,18 @@ class TestReflector(unittest.TestCase):
 
         lister_watcher = TestLW(list_func, lambda **_: fw)
         r = Reflector(lister_watcher, V1Pod(), new_store(meta_namespace_key_func), 0)
-        threading.Thread(target=r.list_and_watch, args=(NeverStop,)).start()
-        fw.error(pod)
-        timeout_event = threading.Event()
+        asyncio.ensure_future(r.list_and_watch(asyncio.Event()))
+        await fw.error(pod)
 
-        def target():
-            with self.assertRaises(StopIteration):
-                next(fw)
-            timeout_event.set()
+        async def target():
+            async for _ in fw:
+                assert False
 
-        threading.Thread(target=target).start()
-        timeout_event.wait(timeout=FOREVER_TEST_TIMEOUT)
+        await asyncio.wait_for(target(), FOREVER_TEST_TIMEOUT)
 
-    def test_run_until(self):
-        stop_event = threading.Event()
+    @async_test
+    async def test_run_until(self):
+        stop_event = asyncio.Event()
         store = new_store(meta_namespace_key_func)
         fw = new_fake()
 
@@ -44,18 +90,15 @@ class TestReflector(unittest.TestCase):
 
         lister_watcher = TestLW(list_func, lambda **_: fw)
         r = Reflector(lister_watcher, V1Pod(), store, 0)
-        threading.Thread(target=r.run, args=(stop_event,)).start()
-        fw.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
+        asyncio.ensure_future(r.run(stop_event))
+        await fw.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
         stop_event.set()
-        timeout_event = threading.Event()
 
-        def target():
-            with self.assertRaises(StopIteration):
-                next(fw)
-            timeout_event.set()
+        async def target():
+            async for _ in fw:
+                assert False
 
-        threading.Thread(target=target).start()
-        timeout_event.wait(timeout=FOREVER_TEST_TIMEOUT)
+        await asyncio.wait_for(target(), FOREVER_TEST_TIMEOUT)
 
 
 class TestLW:
