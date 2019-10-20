@@ -16,6 +16,7 @@ def meta_namespace_key_func(obj):
     meta = obj.metadata
     if meta.namespace:
         return f"{meta.namespace}/{meta.name}"
+    return meta.name
 
 
 def new_store(key_func):

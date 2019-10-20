@@ -100,7 +100,7 @@ class Reflector:
         finally:
             cancel_event.set()
 
-    def last_sync_resource_version(self, v):
+    def last_sync_resource_version(self):
         return self._last_sync_resource_version
 
     def _set_expected_type(self, expected_type):
@@ -133,10 +133,10 @@ class Reflector:
             await event_queue.put(None)
 
         asyncio.ensure_future(get_events())
-        event_task = asyncio.ensure_future(event_queue.get())
         error_task = asyncio.ensure_future(error_queue.get())
         try:
             while True:
+                event_task = asyncio.ensure_future(event_queue.get())
                 done, _ = await asyncio.wait(
                     [event_task, error_task, stop_task],
                     return_when=asyncio.FIRST_COMPLETED,
