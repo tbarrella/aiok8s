@@ -1,3 +1,4 @@
+# TODO: This isn't actually thread-safe
 import asyncio
 
 from . import index as _index

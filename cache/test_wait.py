@@ -54,7 +54,7 @@ def async_test(coro):
 
 class TestWait(unittest.TestCase):
     @async_test
-    async def test_jitter(self):
+    async def test_until(self):
         event = asyncio.Event()
         event.set()
 
@@ -69,11 +69,11 @@ class TestWait(unittest.TestCase):
         async def f():
             await called.put(None)
 
-        async def target():
+        async def coro():
             await until(f, 0, event)
             await called.put(None)
 
-        asyncio.ensure_future(target())
+        asyncio.ensure_future(coro())
         await called.get()
         event.set()
         await called.get()
@@ -94,11 +94,11 @@ class TestWait(unittest.TestCase):
         async def f():
             await called.put(None)
 
-        async def target():
+        async def coro():
             await jitter_until(f, 0, 1, True, event)
             await called.put(None)
 
-        asyncio.ensure_future(target())
+        asyncio.ensure_future(coro())
         await called.get()
         event.set()
         await called.get()

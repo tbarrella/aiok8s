@@ -11,13 +11,7 @@ async def until(f, period, stop_event):
 
 
 async def jitter_until(f, period, jitter_factor, sliding, stop_event):
-    select = asyncio.Queue()
-
-    async def stop():
-        await stop_event.wait()
-        await select.put(None)
-
-    asyncio.ensure_future(stop())
+    stop = asyncio.ensure_future(stop_event.wait())
     while not stop_event.is_set():
         if jitter_factor > 0:
             jittered_period = jitter(period, jitter_factor)
@@ -30,12 +24,10 @@ async def jitter_until(f, period, jitter_factor, sliding, stop_event):
         if sliding:
             t = time_.Timer(jittered_period)
 
-        async def time_out():
-            await t.c.get()
-            await select.put(None)
-
-        asyncio.ensure_future(time_out())
-        await select.get()
+        await asyncio.wait(
+            [asyncio.ensure_future(t.c.get()), stop],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
 
 
 def jitter(duration, max_factor):

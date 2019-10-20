@@ -7,11 +7,8 @@ class Timer:
         self.c = asyncio.Queue(maxsize=1)
 
         async def function():
-            try:
-                await asyncio.sleep(d)
-                await self.c.put(time.time())
-            except asyncio.CancelledError:
-                pass
+            await asyncio.sleep(d)
+            await self.c.put(time.time())
 
         self._task = asyncio.ensure_future(function())
 
