@@ -28,18 +28,13 @@ class Reflector:
         options = {"resource_version": "0"}
 
         async def list_coro():
-            try:
-                return self._lister_watcher.list(**options)
-            except Exception as e:
-                return e
+            return self._lister_watcher.list(**options)
 
         list_task = asyncio.ensure_future(list_coro())
         await asyncio.wait([list_task, stop_task], return_when=asyncio.FIRST_COMPLETED)
         if stop_event.is_set():
             return
         list_ = await list_task
-        if isinstance(list_, Exception):
-            raise list_
         list_meta = list_.metadata
         resource_version = list_meta.resource_version
         items = list_.items

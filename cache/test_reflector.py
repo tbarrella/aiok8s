@@ -7,7 +7,7 @@ from kubernetes.client.models.v1_pod import V1Pod
 from kubernetes.client.models.v1_pod_list import V1PodList
 from kubernetes.client.models.v1_service import V1Service
 
-from .reflector import Reflector
+from .reflector import Reflector, StopRequestedError
 from .store import meta_namespace_key_func, new_store
 from .wait import FOREVER_TEST_TIMEOUT
 from .watch import new_fake
@@ -161,6 +161,16 @@ class TestReflector(unittest.TestCase):
 
         self.assertEqual(options["resource_version"], "32")
         self.assertEqual(g.last_sync_resource_version(), "32")
+
+    @async_test
+    async def test_reflector_stop_watch(self):
+        s = new_store(meta_namespace_key_func)
+        g = Reflector(TestLW(None, None), V1Pod(), s, 0)
+        fw = new_fake()
+        stop_watch = asyncio.Event()
+        stop_watch.set()
+        with self.assertRaises(StopRequestedError):
+            await g._watch_handler(fw, {}, asyncio.Queue(), stop_watch)
 
 
 class TestLW:
