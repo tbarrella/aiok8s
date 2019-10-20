@@ -73,11 +73,11 @@ class TestReflector(unittest.TestCase):
         asyncio.ensure_future(r.list_and_watch(asyncio.Event()))
         await fw.error(pod)
 
-        async def target():
+        async def aw():
             async for _ in fw:
                 assert False
 
-        await asyncio.wait_for(target(), FOREVER_TEST_TIMEOUT)
+        await asyncio.wait_for(aw(), FOREVER_TEST_TIMEOUT)
 
     @async_test
     async def test_run_until(self):
@@ -94,11 +94,11 @@ class TestReflector(unittest.TestCase):
         await fw.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
         stop_event.set()
 
-        async def target():
+        async def aw():
             async for _ in fw:
                 assert False
 
-        await asyncio.wait_for(target(), FOREVER_TEST_TIMEOUT)
+        await asyncio.wait_for(aw(), FOREVER_TEST_TIMEOUT)
 
 
 class TestLW:

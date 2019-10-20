@@ -24,54 +24,46 @@ class Reflector:
         await wait.until(f, self._period, stop_event)
 
     async def list_and_watch(self, stop_event):
+        stop_task = asyncio.ensure_future(stop_event.wait())
         options = {"resource_version": "0"}
-        list_queue = asyncio.Queue(maxsize=1)
-        cancel_event = asyncio.Event()
 
-        async def stop():
-            await stop_event.wait()
-            await list_queue.put(None)
-            cancel_event.set()
-
-        async def list_target():
+        async def list_coro():
             try:
-                list_ = self._lister_watcher.list(**options)
+                return self._lister_watcher.list(**options)
             except Exception as e:
-                await list_queue.put(e)
-            else:
-                await list_queue.put(list_)
+                return e
 
-        asyncio.ensure_future(stop())
-        asyncio.ensure_future(list_target())
-        r = await list_queue.get()
+        list_task = asyncio.ensure_future(list_coro())
+        await asyncio.wait([list_task, stop_task], return_when=asyncio.FIRST_COMPLETED)
         if stop_event.is_set():
             return
-        if isinstance(r, Exception):
-            raise r
-        list_meta = r.metadata
+        list_ = await list_task
+        if isinstance(list_, Exception):
+            raise list_
+        list_meta = list_.metadata
         resource_version = list_meta.resource_version
-        items = r.items
+        items = list_.items
         await self._sync_with(items, resource_version)
         self._set_last_sync_resource_version(resource_version)
 
         resync_error_queue = asyncio.Queue(maxsize=1)
+        cancel_event = asyncio.Event()
+        cancel_task = asyncio.ensure_future(cancel_event.wait())
 
-        async def resync_target():
-            resync_select = asyncio.Queue(maxsize=2)
+        async def resync():
             resync_queue, cleanup = self._resync_queue()
-
-            async def cancel():
-                await cancel_event.wait()
-                await resync_select.put(None)
-
-            async def forward(resync_queue):
-                await resync_select.put(await resync_queue.get())
-
-            asyncio.ensure_future(cancel())
-            asyncio.ensure_future(forward(resync_queue))
             try:
                 while True:
-                    await resync_select.get()
+                    await asyncio.wait(
+                        [
+                            asyncio.ensure_future(resync_queue.get()),
+                            stop_task,
+                            cancel_task,
+                        ],
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    if stop_event.is_set():
+                        return
                     if cancel_event.is_set():
                         return
                     if self.should_resync is None or self.should_resync():
@@ -82,11 +74,10 @@ class Reflector:
                             return
                     cleanup()
                     resync_queue, cleanup = self._resync_queue()
-                    asyncio.ensure_future(forward(resync_queue))
             finally:
                 cleanup()
 
-        asyncio.ensure_future(resync_target())
+        asyncio.ensure_future(resync())
         try:
             while not stop_event.is_set():
                 timeout_seconds = _MIN_WATCH_TIMEOUT * (random.random() + 1)
@@ -132,29 +123,29 @@ class Reflector:
 
     async def _watch_handler(self, w, options, error_queue, stop_event):
         start = self._clock.now()
+        stop_task = asyncio.ensure_future(stop_event.wait())
         event_count = 0
-        select = asyncio.Queue()
+        event_queue = asyncio.Queue()
 
-        async def stop():
-            await stop_event.wait()
-            await select.put(StopRequestedError())
-
-        async def error():
-            await select.put(await error_queue.get())
-
-        async def forward():
+        async def get_events():
             async for event in w:
-                await select.put(event)
-            await select.put(None)
+                await event_queue.put(event)
+            await event_queue.put(None)
 
-        asyncio.ensure_future(stop())
-        asyncio.ensure_future(error())
-        asyncio.ensure_future(forward())
+        asyncio.ensure_future(get_events())
+        event_task = asyncio.ensure_future(event_queue.get())
+        error_task = asyncio.ensure_future(error_queue.get())
         try:
             while True:
-                event = await select.get()
-                if isinstance(event, Exception):
-                    raise event
+                done, _ = await asyncio.wait(
+                    [event_task, error_task, stop_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if stop_event.is_set():
+                    raise StopRequestedError
+                if error_task in done:
+                    raise await error_task
+                event = await event_task
                 if event is None:
                     break
                 if event["type"] == watch.EventType.ERROR:
