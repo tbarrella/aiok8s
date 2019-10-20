@@ -1,4 +1,4 @@
-import threading
+import asyncio
 
 from . import index as _index
 
@@ -9,25 +9,25 @@ def new_thread_safe_store(indexers, indices):
 
 class _ThreadSafeMap:
     def __init__(self, indexers, indices):
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
         self._items = {}
         self._indexers = indexers
         self._indices = indices
 
-    def add(self, key, obj):
-        with self._lock:
+    async def add(self, key, obj):
+        async with self._lock:
             old_object = self._items.get(key)
             self._items[key] = obj
             self._update_indices(old_object, obj, key)
 
-    def update(self, key, obj):
-        with self._lock:
+    async def update(self, key, obj):
+        async with self._lock:
             old_object = self._items.get(key)
             self._items[key] = obj
             self._update_indices(old_object, obj, key)
 
-    def delete(self, key, obj):
-        with self._lock:
+    async def delete(self, key, obj):
+        async with self._lock:
             try:
                 obj = self._items[key]
             except KeyError:
@@ -37,26 +37,23 @@ class _ThreadSafeMap:
                 del self._items[key]
 
     def get(self, key):
-        with self._lock:
-            return self._items.get(key)
+        return self._items.get(key)
 
     def list(self):
-        with self._lock:
-            return list(self._items.values())
+        return list(self._items.values())
 
     def list_keys(self):
-        with self._lock:
-            return list(self._items)
+        return list(self._items)
 
-    def replace(self, items, resource_version):
-        with self._lock:
+    async def replace(self, items, resource_version):
+        async with self._lock:
             self._items = items
             self._indices = _index.Indices()
             for key, item in self._items.items():
                 self._update_indices(None, item, key)
 
-    def index(self, index_name, obj):
-        with self._lock:
+    async def index(self, index_name, obj):
+        async with self._lock:
             index_func = self._indexers[index_name]
             index_keys = index_func(obj)
             index = self._indices.get(index_name, _index.Index())
@@ -70,22 +67,22 @@ class _ThreadSafeMap:
                 }
             return [self._items[absolute_key] for absolute_key in return_key_set]
 
-    def index_keys(self, index_name, index_key):
-        with self._lock:
+    async def index_keys(self, index_name, index_key):
+        async with self._lock:
             if index_name not in self._indexers:
                 raise KeyError(f"Index with name {index_name} does not exist")
             index = self._indices.get(index_name, _index.Index())
             set_ = index.get(index_key, set())
             return list(set_)
 
-    def list_index_func_values(self, index_name):
-        with self._lock:
+    async def list_index_func_values(self, index_name):
+        async with self._lock:
             index = self._indices.get(index_name, _index.Index())
             names = list(index)
             return names
 
-    def by_index(self, index_name, index_key):
-        with self._lock:
+    async def by_index(self, index_name, index_key):
+        async with self._lock:
             if index_name not in self._indexers:
                 raise KeyError(f"Index with name {index_name} does not exist")
             index = self._indices.get(index_name, _index.Index())
@@ -95,8 +92,8 @@ class _ThreadSafeMap:
     def get_indexers(self):
         return self._indexers
 
-    def add_indexers(self, new_indexers):
-        with self._lock:
+    async def add_indexers(self, new_indexers):
+        async with self._lock:
             if self._items:
                 raise Exception("cannot add indexers to running index")
             old_keys = self._indexers.keys()

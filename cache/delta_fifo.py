@@ -1,5 +1,5 @@
+import asyncio
 import enum
-import threading
 from typing import Any, NamedTuple
 
 from . import fifo, store
@@ -11,27 +11,26 @@ class DeltaFIFO:
         self._queue = []
         self._key_func = key_func
         self._known_objects = known_objects
-        # TODO: RWLock
-        self._lock = threading.Lock()
-        self._cond = threading.Condition(lock=self._lock)
+        self._lock = asyncio.Lock()
+        self._cond = asyncio.Condition(lock=self._lock)
         self._populated = False
         self._initial_population_count = 0
         self._closed = False
-        self._closed_lock = threading.Lock()
+        self._closed_lock = asyncio.Lock()
 
-    def add(self, obj):
-        with self._lock:
+    async def add(self, obj):
+        async with self._lock:
             self._populated = True
             return self._queue_action_locked(DeltaType.ADDED, obj)
 
-    def update(self, obj):
-        with self._lock:
+    async def update(self, obj):
+        async with self._lock:
             self._populated = True
             return self._queue_action_locked(DeltaType.UPDATED, obj)
 
-    def delete(self, obj):
+    async def delete(self, obj):
         id_ = self.key_of(obj)
-        with self._lock:
+        async with self._lock:
             self._populated = True
             if not self._known_objects:
                 if id_ not in self._items:
@@ -48,24 +47,21 @@ class DeltaFIFO:
             self._queue_action_locked(DeltaType.DELETED, obj)
 
     def list(self):
-        with self._lock:
-            return [item.newest().object for item in self._items.values()]
+        return [item.newest().object for item in self._items.values()]
 
     def list_keys(self):
-        with self._lock:
-            return list(self._items)
+        return list(self._items)
 
     def get(self, obj):
         key = self.key_of(obj)
         return self.get_by_key(key)
 
     def get_by_key(self, key):
-        with self._lock:
-            d = self._items.get(key)
-            return d and _copy_deltas(d)
+        d = self._items.get(key)
+        return d and _copy_deltas(d)
 
-    def replace(self, list_, resource_version):
-        with self._lock:
+    async def replace(self, list_, resource_version):
+        async with self._lock:
             keys = set()
             for item in list_:
                 key = self.key_of(item)
@@ -105,21 +101,21 @@ class DeltaFIFO:
                 self._populated = True
                 self._initial_population_count = len(list_) + queued_deletions
 
-    def resync(self):
-        with self._lock:
+    async def resync(self):
+        async with self._lock:
             if not self._known_objects:
                 return
             keys = self._known_objects.list_keys()
             for k in keys:
                 self._sync_key_locked(k)
 
-    def pop(self, process):
-        with self._lock:
+    async def pop(self, process):
+        async with self._lock:
             while True:
                 while not self._queue:
                     if self.is_closed():
                         raise fifo.FIFOClosedError
-                    self._cond.wait()
+                    await self._cond.wait()
                 id_ = self._queue.pop(0)
                 if self._initial_population_count:
                     self._initial_population_count -= 1
@@ -136,21 +132,19 @@ class DeltaFIFO:
                     raise fifo.ProcessError(item) from e
                 return item
 
-    def add_if_not_present(self, obj):
+    async def add_if_not_present(self, obj):
         if not isinstance(obj, Deltas):
             raise TypeError(f"object must be of type Deltas, but got {obj!r}")
         id_ = self.key_of(obj.newest().object)
-        with self._lock:
+        async with self._lock:
             self._add_if_not_present(id_, obj)
 
     def has_synced(self):
-        with self._lock:
-            return self._populated and not self._initial_population_count
+        return self._populated and not self._initial_population_count
 
     def close(self):
-        with self._closed_lock:
-            self._closed = True
-            self._cond.notify_all()
+        self._closed = True
+        self._cond.notify_all()
 
     def key_of(self, obj):
         if isinstance(obj, Deltas):
@@ -162,8 +156,7 @@ class DeltaFIFO:
         return self._key_func(obj)
 
     def is_closed(self):
-        with self._closed_lock:
-            return self._closed
+        return self._closed
 
     def _add_if_not_present(self, id_, deltas):
         self._populated = True
