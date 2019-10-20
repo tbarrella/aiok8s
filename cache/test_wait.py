@@ -1,82 +1,136 @@
-import queue
-import threading
+import asyncio
 import time
 import unittest
 
 from .wait import jitter_until, until
 
 
+def run(main, *, debug=False):
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        loop.set_debug(debug)
+        return loop.run_until_complete(main)
+    finally:
+        try:
+            _cancel_all_tasks(loop)
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
+
+
+def _cancel_all_tasks(loop):
+    to_cancel = asyncio.all_tasks(loop)
+    if not to_cancel:
+        return
+
+    for task in to_cancel:
+        task.cancel()
+
+    loop.run_until_complete(
+        asyncio.gather(*to_cancel, loop=loop, return_exceptions=True)
+    )
+
+    for task in to_cancel:
+        if task.cancelled():
+            continue
+        if task.exception() is not None:
+            loop.call_exception_handler(
+                {
+                    "message": "unhandled exception during asyncio.run() shutdown",
+                    "exception": task.exception(),
+                    "task": task,
+                }
+            )
+
+
+def async_test(coro):
+    def wrapper(*args, **kwargs):
+        return run(coro(*args, **kwargs))
+
+    return wrapper
+
+
 class TestWait(unittest.TestCase):
-    def test_jitter(self):
-        event = threading.Event()
+    @async_test
+    async def test_jitter(self):
+        event = asyncio.Event()
         event.set()
 
-        def f():
+        async def f():
             raise Exception("should not have been invoked")
 
-        until(f, 0, event)
+        await until(f, 0, event)
 
-        event = threading.Event()
-        called = queue.Queue()
+        event = asyncio.Event()
+        called = asyncio.Queue()
 
-        def f():
-            called.put(None)
+        async def f():
+            await called.put(None)
 
-        def target():
-            until(f, 0, event)
-            called.put(None)
+        async def target():
+            await until(f, 0, event)
+            await called.put(None)
 
-        threading.Thread(target=target).start()
-        called.get()
+        asyncio.ensure_future(target())
+        await called.get()
         event.set()
-        called.get()
+        await called.get()
 
-    def test_jitter_until(self):
-        event = threading.Event()
+    @async_test
+    async def test_jitter_until(self):
+        event = asyncio.Event()
         event.set()
 
-        def f():
+        async def f():
             raise Exception("should not have been invoked")
 
-        jitter_until(f, 0, 1, True, event)
+        await jitter_until(f, 0, 1, True, event)
 
-        event = threading.Event()
-        called = queue.Queue()
+        event = asyncio.Event()
+        called = asyncio.Queue()
 
-        def f():
-            called.put(None)
+        async def f():
+            await called.put(None)
 
-        def target():
-            jitter_until(f, 0, 1, True, event)
-            called.put(None)
+        async def target():
+            await jitter_until(f, 0, 1, True, event)
+            await called.put(None)
 
-        threading.Thread(target=target).start()
-        called.get()
+        asyncio.ensure_future(target())
+        await called.get()
         event.set()
-        called.get()
+        await called.get()
 
-    def test_jitter_until_returns_immediately(self):
+    @async_test
+    async def test_jitter_until_returns_immediately(self):
         now = time.time()
-        event = threading.Event()
-        jitter_until(event.set, 30, 1, True, event)
+        event = asyncio.Event()
+
+        async def f():
+            event.set()
+
+        await jitter_until(f, 30, 1, True, event)
         self.assertLessEqual(time.time(), now + 25)
 
-    def test_jitter_until_negative_factor(self):
+    @async_test
+    async def test_jitter_until_negative_factor(self):
         now = time.time()
-        event = threading.Event()
-        called = queue.Queue()
-        received = queue.Queue()
+        event = asyncio.Event()
+        called = asyncio.Queue()
+        received = asyncio.Queue()
 
-        def f():
-            called.put(None)
-            received.get()
+        async def f():
+            await called.put(None)
+            await received.get()
 
-        threading.Thread(target=jitter_until, args=(f, 1, -30, True, event)).start()
-        called.get()
-        received.put(None)
-        called.get()
+        asyncio.ensure_future(jitter_until(f, 1, -30, True, event))
+        await called.get()
+        await received.put(None)
+        await called.get()
         event.set()
-        received.put(None)
+        await received.put(None)
         self.assertLessEqual(time.time(), now + 3)
 
 

@@ -1,25 +1,24 @@
-import queue
+import asyncio
 import random
-import threading
 
 from . import time_
 
 FOREVER_TEST_TIMEOUT = 30
-NeverStop = threading.Event()
+NeverStop = asyncio.Event()
 
 
-def until(f, period, stop_event):
-    jitter_until(f, period, 0, True, stop_event)
+async def until(f, period, stop_event):
+    await jitter_until(f, period, 0, True, stop_event)
 
 
-def jitter_until(f, period, jitter_factor, sliding, stop_event):
-    select = queue.Queue()
+async def jitter_until(f, period, jitter_factor, sliding, stop_event):
+    select = asyncio.Queue()
 
-    def stop():
-        stop_event.wait()
-        select.put(None)
+    async def stop():
+        await stop_event.wait()
+        await select.put(None)
 
-    threading.Thread(target=stop).start()
+    asyncio.ensure_future(stop())
     while not stop_event.is_set():
         if jitter_factor > 0:
             jittered_period = jitter(period, jitter_factor)
@@ -28,16 +27,16 @@ def jitter_until(f, period, jitter_factor, sliding, stop_event):
         if not sliding:
             # TODO: Reuse
             t = time_.Timer(jittered_period)
-        f()
+        await f()
         if sliding:
             t = time_.Timer(jittered_period)
 
-        def time_out():
-            t.c.get()
-            select.put(None)
+        async def time_out():
+            await t.c.get()
+            await select.put(None)
 
-        threading.Thread(target=time_out, daemon=True).start()
-        select.get()
+        asyncio.ensure_future(time_out())
+        await select.get()
 
 
 def jitter(duration, max_factor):

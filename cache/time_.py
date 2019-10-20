@@ -1,18 +1,19 @@
-import queue
-import threading
+import asyncio
 import time
 
 
 class Timer:
     def __init__(self, d):
-        self.c = queue.Queue(maxsize=1)
+        self.c = asyncio.Queue(maxsize=1)
 
-        def function():
-            self.c.put(time.time())
+        async def function():
+            try:
+                await asyncio.sleep(d)
+                await self.c.put(time.time())
+            except asyncio.CancelledError:
+                pass
 
-        self._timer = threading.Timer(d, function)
-        self._timer.daemon = True
-        self._timer.start()
+        self._task = asyncio.ensure_future(function())
 
     def stop(self):
-        self._timer.cancel()
+        self._task.cancel()
