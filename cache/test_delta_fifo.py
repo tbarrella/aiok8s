@@ -92,7 +92,7 @@ class TestDeltaFIFO(unittest.TestCase):
             raise RequeueError
 
         await f.pop(process)
-        f.get_by_key("foo")
+        self.assertIsNotNone(f.get_by_key("foo"))
 
         class TestError(Exception):
             pass
@@ -107,7 +107,7 @@ class TestDeltaFIFO(unittest.TestCase):
             self.assertIsInstance(e.__cause__, TestError)
         else:
             assert False, "expected error"
-        f.get_by_key("foo")
+        self.assertIsNotNone(f.get_by_key("foo"))
 
         def process(obj):
             self.assertEqual(obj[0].object.name, "foo")

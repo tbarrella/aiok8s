@@ -1,0 +1,256 @@
+import asyncio
+import unittest
+from typing import Any, NamedTuple
+
+from .fifo import FIFO, ProcessError, RequeueError
+
+
+def run(main, *, debug=False):
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        loop.set_debug(debug)
+        return loop.run_until_complete(main)
+    finally:
+        try:
+            _cancel_all_tasks(loop)
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
+
+
+def _cancel_all_tasks(loop):
+    to_cancel = asyncio.all_tasks(loop)
+    if not to_cancel:
+        return
+
+    for task in to_cancel:
+        task.cancel()
+
+    loop.run_until_complete(
+        asyncio.gather(*to_cancel, loop=loop, return_exceptions=True)
+    )
+
+    for task in to_cancel:
+        if task.cancelled():
+            continue
+        if task.exception() is not None:
+            loop.call_exception_handler(
+                {
+                    "message": "unhandled exception during asyncio.run() shutdown",
+                    "exception": task.exception(),
+                    "task": task,
+                }
+            )
+
+
+def async_test(coro):
+    def wrapper(*args, **kwargs):
+        return run(coro(*args, **kwargs))
+
+    return wrapper
+
+
+class TestFIFO(unittest.TestCase):
+    @async_test
+    async def test_basic(self):
+        f = FIFO(test_fifo_object_key_func)
+        amount = 500
+
+        async def add_ints():
+            for i in range(amount):
+                await f.add(mk_fifo_obj(f"a{i}", i + 1))
+
+        async def add_floats():
+            for i in range(amount):
+                await f.add(mk_fifo_obj(f"b{i}", i + 1.0))
+
+        last_int = 0
+        last_float = 0.0
+        asyncio.ensure_future(add_ints())
+        asyncio.ensure_future(add_floats())
+        for i in range(amount * 2):
+            obj = (await pop(f)).val
+            if isinstance(obj, int):
+                self.assertGreater(obj, last_int)
+                last_int = obj
+            elif isinstance(obj, float):
+                self.assertGreater(obj, last_float)
+                last_float = obj
+            else:
+                assert False, f"unexpected type {obj!r}"
+
+    @async_test
+    async def test_requeue_on_pop(self):
+        f = FIFO(test_fifo_object_key_func)
+        await f.add(mk_fifo_obj("foo", 10))
+
+        def process(obj):
+            self.assertEqual(obj.name, "foo")
+            raise RequeueError
+
+        await f.pop(process)
+        self.assertIsNotNone(f.get_by_key("foo"))
+
+        class TestError(Exception):
+            pass
+
+        def process(obj):
+            self.assertEqual(obj.name, "foo")
+            raise RequeueError from TestError
+
+        try:
+            await f.pop(process)
+        except ProcessError as e:
+            self.assertIsInstance(e.__cause__, TestError)
+        else:
+            assert False, "expected error"
+        self.assertIsNotNone(f.get_by_key("foo"))
+
+        def process(obj):
+            self.assertEqual(obj.name, "foo")
+
+        await f.pop(process)
+        self.assertIsNone(f.get_by_key("foo"))
+
+    @async_test
+    async def test_add_update(self):
+        f = FIFO(test_fifo_object_key_func)
+        await f.add(mk_fifo_obj("foo", 10))
+        await f.update(mk_fifo_obj("foo", 15))
+
+        self.assertEqual(f.list(), [mk_fifo_obj("foo", 15)])
+        self.assertEqual(f.list_keys(), ["foo"])
+
+        got = asyncio.Queue(maxsize=2)
+
+        async def get_popped():
+            while True:
+                await got.put(await pop(f))
+
+        asyncio.ensure_future(get_popped())
+        first = await got.get()
+        self.assertEqual(first.val, 15)
+        with self.assertRaises(asyncio.TimeoutError):
+            await asyncio.wait_for(got.get(), 0.05)
+        self.assertIsNone(f.get(mk_fifo_obj("foo", "")))
+
+    @async_test
+    async def test_add_replace(self):
+        f = FIFO(test_fifo_object_key_func)
+        await f.add(mk_fifo_obj("foo", 10))
+        await f.replace([mk_fifo_obj("foo", 15)], "15")
+        got = asyncio.Queue(maxsize=2)
+
+        async def get_popped():
+            while True:
+                await got.put(await pop(f))
+
+        asyncio.ensure_future(get_popped())
+        first = await got.get()
+        self.assertEqual(first.val, 15)
+        with self.assertRaises(asyncio.TimeoutError):
+            await asyncio.wait_for(got.get(), 0.05)
+        self.assertIsNone(f.get(mk_fifo_obj("foo", "")))
+
+    @async_test
+    async def test_detect_line_jumpers(self):
+        f = FIFO(test_fifo_object_key_func)
+
+        await f.add(mk_fifo_obj("foo", 10))
+        await f.add(mk_fifo_obj("bar", 1))
+        await f.add(mk_fifo_obj("foo", 11))
+        await f.add(mk_fifo_obj("foo", 13))
+        await f.add(mk_fifo_obj("zab", 30))
+
+        self.assertEqual((await pop(f)).val, 13)
+
+        await f.add(mk_fifo_obj("foo", 14))
+        self.assertEqual((await pop(f)).val, 1)
+        self.assertEqual((await pop(f)).val, 30)
+        self.assertEqual((await pop(f)).val, 14)
+
+    @async_test
+    async def test_add_if_not_present(self):
+        f = FIFO(test_fifo_object_key_func)
+
+        await f.add(mk_fifo_obj("a", 1))
+        await f.add(mk_fifo_obj("b", 2))
+        await f.add_if_not_present(mk_fifo_obj("b", 3))
+        await f.add_if_not_present(mk_fifo_obj("c", 4))
+
+        self.assertEqual(len(f._items), 3)
+
+        expected_values = [1, 2, 4]
+        for expected in expected_values:
+            self.assertEqual((await pop(f)).val, expected)
+
+    @async_test
+    async def test_has_synced(self):
+        tests = [
+            {"actions": [], "expected_synced": False},
+            {
+                "actions": [lambda f: f.add(mk_fifo_obj("a", 1))],
+                "expected_synced": True,
+            },
+            {"actions": [lambda f: f.replace([], "0")], "expected_synced": True},
+            {
+                "actions": [
+                    lambda f: f.replace([mk_fifo_obj("a", 1), mk_fifo_obj("b", 2)], "0")
+                ],
+                "expected_synced": False,
+            },
+            {
+                "actions": [
+                    lambda f: f.replace(
+                        [mk_fifo_obj("a", 1), mk_fifo_obj("b", 2)], "0"
+                    ),
+                    pop,
+                ],
+                "expected_synced": False,
+            },
+            {
+                "actions": [
+                    lambda f: f.replace(
+                        [mk_fifo_obj("a", 1), mk_fifo_obj("b", 2)], "0"
+                    ),
+                    pop,
+                    pop,
+                ],
+                "expected_synced": True,
+            },
+        ]
+        for test in tests:
+            f = FIFO(test_fifo_object_key_func)
+            for action in test["actions"]:
+                await action(f)
+            self.assertEqual(f.has_synced(), test["expected_synced"])
+
+
+async def pop(queue_):
+    result = None
+
+    def process(obj):
+        nonlocal result
+        result = obj
+
+    await queue_.pop(process)
+    return result
+
+
+def test_fifo_object_key_func(obj):
+    return obj.name
+
+
+class TestFifoObject(NamedTuple):
+    name: str
+    val: Any
+
+
+def mk_fifo_obj(name, val):
+    return TestFifoObject(name, val)
+
+
+if __name__ == "__main__":
+    unittest.main()
