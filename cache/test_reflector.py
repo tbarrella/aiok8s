@@ -7,10 +7,11 @@ from kubernetes.client.models.v1_pod import V1Pod
 from kubernetes.client.models.v1_pod_list import V1PodList
 from kubernetes.client.models.v1_service import V1Service
 
+from . import watch
+from .fifo import FIFO
 from .reflector import Reflector, StopRequestedError
 from .store import meta_namespace_key_func, new_store
 from .wait import FOREVER_TEST_TIMEOUT
-from .watch import new_fake
 
 
 def run(main, *, debug=False):
@@ -64,7 +65,7 @@ class TestReflector(unittest.TestCase):
     @async_test
     async def test_close_watch_on_error(self):
         pod = V1Pod(metadata=V1ObjectMeta(name="bar"))
-        fw = new_fake()
+        fw = watch.new_fake()
 
         def list_func(**options):
             return V1PodList(metadata=V1ListMeta(resource_version="1"), items=[])
@@ -84,7 +85,7 @@ class TestReflector(unittest.TestCase):
     async def test_run_until(self):
         stop_event = asyncio.Event()
         store = new_store(meta_namespace_key_func)
-        fw = new_fake()
+        fw = watch.new_fake()
 
         def list_func(**options):
             return V1PodList(metadata=V1ListMeta(resource_version="1"), items=[])
@@ -112,7 +113,7 @@ class TestReflector(unittest.TestCase):
     async def test_reflector_watch_handler_error(self):
         s = new_store(meta_namespace_key_func)
         g = Reflector(TestLW(None, None), V1Pod(), s, 0)
-        fw = new_fake()
+        fw = watch.new_fake()
         fw.stop()
         with self.assertRaises(Exception):
             await g._watch_handler(fw, {}, asyncio.Queue(), asyncio.Event())
@@ -121,7 +122,7 @@ class TestReflector(unittest.TestCase):
     async def test_reflector_watch_handler(self):
         s = new_store(meta_namespace_key_func)
         g = Reflector(TestLW(None, None), V1Pod(), s, 0)
-        fw = new_fake()
+        fw = watch.new_fake()
         await s.add(V1Pod(metadata=V1ObjectMeta(name="foo")))
         await s.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
 
@@ -166,11 +167,53 @@ class TestReflector(unittest.TestCase):
     async def test_reflector_stop_watch(self):
         s = new_store(meta_namespace_key_func)
         g = Reflector(TestLW(None, None), V1Pod(), s, 0)
-        fw = new_fake()
+        fw = watch.new_fake()
         stop_watch = asyncio.Event()
         stop_watch.set()
         with self.assertRaises(StopRequestedError):
             await g._watch_handler(fw, {}, asyncio.Queue(), stop_watch)
+
+    @async_test
+    async def test_reflector_list_and_watch(self):
+        created_fakes = asyncio.Queue()
+        expected_rvs = ["1", "3"]
+
+        def list_func(**options):
+            return V1PodList(metadata=V1ListMeta(resource_version="1"), items=[])
+
+        def watch_func(**options):
+            nonlocal expected_rvs
+            rv = options["resource_version"]
+            fw = watch.new_fake()
+            self.assertEqual(rv, expected_rvs[0])
+            expected_rvs = expected_rvs[1:]
+            asyncio.ensure_future(created_fakes.put(fw))
+            return fw
+
+        lw = TestLW(list_func, watch_func)
+        s = FIFO(meta_namespace_key_func)
+        r = Reflector(lw, V1Pod(), s, 0)
+        asyncio.ensure_future(r.list_and_watch(asyncio.Event()))
+
+        ids = ["foo", "bar", "baz", "qux", "zoo"]
+        fw = None
+        for i, id_ in enumerate(ids):
+            if not fw:
+                fw = await created_fakes.get()
+            sending_rv = str(i + 2)
+            await fw.add(
+                V1Pod(metadata=V1ObjectMeta(name=id_, resource_version=sending_rv))
+            )
+            if sending_rv == "3":
+                fw.stop()
+                fw = None
+
+        for i, id_ in enumerate(ids):
+            pod = await pop(s)
+            self.assertEqual(pod.metadata.name, id_)
+            self.assertEqual(pod.metadata.resource_version, str(i + 2))
+
+        self.assertEqual(len(expected_rvs), 0)
 
 
 class TestLW:
@@ -183,6 +226,17 @@ class TestLW:
 
     def watch(self, **options):
         return self._watch_func(**options)
+
+
+async def pop(queue_):
+    result = None
+
+    def process(obj):
+        nonlocal result
+        result = obj
+
+    await queue_.pop(process)
+    return result
 
 
 if __name__ == "__main__":

@@ -73,14 +73,12 @@ class Reflector:
                 cleanup()
 
         asyncio.ensure_future(resync())
+        options["resource_version"] = resource_version
         try:
             while not stop_event.is_set():
                 timeout_seconds = _MIN_WATCH_TIMEOUT * (random.random() + 1)
-                options = {
-                    "resource_version": resource_version,
-                    "timeout_seconds": timeout_seconds,
-                    # TODO: AllowWatchBookmarks
-                }
+                # TODO: AllowWatchBookmarks
+                options["timeout_seconds"] = timeout_seconds
                 try:
                     w = self._lister_watcher.watch(**options)
                 except Exception:
