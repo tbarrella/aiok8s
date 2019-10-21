@@ -7,11 +7,10 @@ from kubernetes.client.models.v1_pod import V1Pod
 from kubernetes.client.models.v1_pod_list import V1PodList
 from kubernetes.client.models.v1_service import V1Service
 
-from . import watch
+from . import wait, watch
 from .fifo import FIFO
 from .reflector import Reflector, StopRequestedError
 from .store import meta_namespace_key_func, new_store
-from .wait import FOREVER_TEST_TIMEOUT
 
 
 def run(main, *, debug=False):
@@ -79,7 +78,7 @@ class TestReflector(unittest.TestCase):
             async for _ in fw:
                 assert False
 
-        await asyncio.wait_for(aw(), FOREVER_TEST_TIMEOUT)
+        await asyncio.wait_for(aw(), wait.FOREVER_TEST_TIMEOUT)
 
     @async_test
     async def test_run_until(self):
@@ -100,14 +99,14 @@ class TestReflector(unittest.TestCase):
             async for _ in fw:
                 assert False
 
-        await asyncio.wait_for(aw(), FOREVER_TEST_TIMEOUT)
+        await asyncio.wait_for(aw(), wait.FOREVER_TEST_TIMEOUT)
 
     @async_test
     async def test_reflector_resync_queue(self):
         s = new_store(meta_namespace_key_func)
         g = Reflector(TestLW(None, None), V1Pod(), s, 0.001)
         a, _ = g._resync_queue()
-        await asyncio.wait_for(a.get(), FOREVER_TEST_TIMEOUT)
+        await asyncio.wait_for(a.get(), wait.FOREVER_TEST_TIMEOUT)
 
     @async_test
     async def test_reflector_watch_handler_error(self):
@@ -214,6 +213,91 @@ class TestReflector(unittest.TestCase):
             self.assertEqual(pod.metadata.resource_version, str(i + 2))
 
         self.assertEqual(len(expected_rvs), 0)
+
+    @async_test
+    async def test_reflector_list_and_watch_with_errors(self):
+        def mk_pod(id_, rv):
+            return V1Pod(metadata=V1ObjectMeta(name=id_, resource_version=rv))
+
+        def mk_list(rv, *pods):
+            items = list(pods)
+            return V1PodList(metadata=V1ListMeta(resource_version=rv), items=items)
+
+        table = [
+            {
+                "list": mk_list("1"),
+                "events": [
+                    {"type": watch.EventType.ADDED, "object": mk_pod("foo", "2")},
+                    {"type": watch.EventType.ADDED, "object": mk_pod("bar", "3")},
+                ],
+            },
+            {
+                "list": mk_list("3", mk_pod("foo", "2"), mk_pod("bar", "3")),
+                "events": [
+                    {"type": watch.EventType.DELETED, "object": mk_pod("foo", "4")},
+                    {"type": watch.EventType.ADDED, "object": mk_pod("qux", "5")},
+                ],
+            },
+            {"list_err": Exception("a list error")},
+            {
+                "list": mk_list("5", mk_pod("bar", "3"), mk_pod("qux", "5")),
+                "watch_err": Exception("a watch error"),
+            },
+            {
+                "list": mk_list("5", mk_pod("bar", "3"), mk_pod("qux", "5")),
+                "events": [
+                    {"type": watch.EventType.ADDED, "object": mk_pod("baz", "6")}
+                ],
+            },
+            {
+                "list": mk_list(
+                    "6", mk_pod("bar", "3"), mk_pod("qux", "5"), mk_pod("baz", "6")
+                )
+            },
+        ]
+
+        s = FIFO(meta_namespace_key_func)
+        for item in table:
+            if "list" in item:
+                current = s.list()
+                check_map = {
+                    item.metadata.name: item.metadata.resource_version
+                    for item in current
+                }
+                for pod in item["list"].items:
+                    self.assertEqual(
+                        check_map[pod.metadata.name], pod.metadata.resource_version
+                    )
+                self.assertEqual(len(check_map), len(item["list"].items))
+            watch_ret = item.get("events", [])
+            watch_err = item.get("watch_err")
+
+            def list_func(**options):
+                if "list_err" in item:
+                    raise item["list_err"]
+                return item["list"]
+
+            def watch_func(**options):
+                nonlocal watch_err
+                if watch_err:
+                    raise watch_err
+                watch_err = Exception("second watch")
+                fw = watch.new_fake()
+
+                async def coro():
+                    for e in watch_ret:
+                        await fw.action(e["type"], e["object"])
+                    fw.stop()
+
+                asyncio.ensure_future(coro())
+                return fw
+
+            lw = TestLW(list_func, watch_func)
+            r = Reflector(lw, V1Pod(), s, 0)
+            try:
+                await r.list_and_watch(asyncio.Event())
+            except Exception:
+                pass
 
 
 class TestLW:
