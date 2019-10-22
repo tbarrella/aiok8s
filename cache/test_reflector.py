@@ -8,6 +8,7 @@ from kubernetes.client.models.v1_pod_list import V1PodList
 from kubernetes.client.models.v1_service import V1Service
 
 from . import wait, watch
+from .fake_custom_store import FakeCustomStore
 from .fifo import FIFO
 from .reflector import Reflector, StopRequestedError
 from .store import meta_namespace_key_func, new_store
@@ -298,6 +299,33 @@ class TestReflector(unittest.TestCase):
                 await r.list_and_watch(asyncio.Event())
             except Exception:
                 pass
+
+    @async_test
+    async def test_reflector_resync(self):
+        iteration = 0
+        stop_event = asyncio.Event()
+        rerr = Exception("expected resync reached")
+
+        def resync_func():
+            nonlocal iteration
+            iteration += 1
+            if iteration == 2:
+                raise rerr
+
+        s = FakeCustomStore(resync_func=resync_func)
+
+        def list_func(**options):
+            return V1PodList(metadata=V1ListMeta(resource_version="0"), items=[])
+
+        def watch_func(**options):
+            fw = watch.new_fake()
+            return fw
+
+        lw = TestLW(list_func, watch_func)
+        resync_period = 0.001
+        r = Reflector(lw, V1Pod(), s, resync_period)
+        await r.list_and_watch(stop_event)
+        self.assertEqual(iteration, 2)
 
 
 class TestLW:
