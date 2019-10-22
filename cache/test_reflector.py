@@ -327,8 +327,7 @@ class TestReflector(unittest.TestCase):
         await r.list_and_watch(stop_event)
         self.assertEqual(iteration, 2)
 
-    @async_test
-    async def test_set_expected_type(self):
+    def test_set_expected_type(self):
         test_cases = {
             "None type": {"expected_type_name": _DEFAULT_EXPECTED_TYPE_NAME},
             "Normal type": {
@@ -337,7 +336,7 @@ class TestReflector(unittest.TestCase):
                 "expected_type": V1Pod,
             },
         }
-        for test_name, tc in test_cases.items():
+        for tc in test_cases.values():
             r = Reflector.__new__(Reflector)
             r._set_expected_type(tc.get("input_type"))
             self.assertEqual(r._expected_type, tc.get("expected_type"))
