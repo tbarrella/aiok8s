@@ -10,7 +10,7 @@ from kubernetes.client.models.v1_service import V1Service
 from . import wait, watch
 from .fake_custom_store import FakeCustomStore
 from .fifo import FIFO
-from .reflector import Reflector, StopRequestedError
+from .reflector import _DEFAULT_EXPECTED_TYPE_NAME, Reflector, StopRequestedError
 from .store import meta_namespace_key_func, new_store
 
 
@@ -103,25 +103,25 @@ class TestReflector(unittest.TestCase):
         await asyncio.wait_for(aw(), wait.FOREVER_TEST_TIMEOUT)
 
     @async_test
-    async def test_reflector_resync_queue(self):
+    async def test_resync_queue(self):
         s = new_store(meta_namespace_key_func)
-        g = Reflector(TestLW(None, None), V1Pod(), s, 0.001)
+        g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0.001)
         a, _ = g._resync_queue()
         await asyncio.wait_for(a.get(), wait.FOREVER_TEST_TIMEOUT)
 
     @async_test
-    async def test_reflector_watch_handler_error(self):
+    async def test_watch_handler_error(self):
         s = new_store(meta_namespace_key_func)
-        g = Reflector(TestLW(None, None), V1Pod(), s, 0)
+        g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0)
         fw = watch.new_fake()
         fw.stop()
         with self.assertRaises(Exception):
             await g._watch_handler(fw, {}, asyncio.Queue(), asyncio.Event())
 
     @async_test
-    async def test_reflector_watch_handler(self):
+    async def test_watch_handler(self):
         s = new_store(meta_namespace_key_func)
-        g = Reflector(TestLW(None, None), V1Pod(), s, 0)
+        g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0)
         fw = watch.new_fake()
         await s.add(V1Pod(metadata=V1ObjectMeta(name="foo")))
         await s.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
@@ -164,9 +164,9 @@ class TestReflector(unittest.TestCase):
         self.assertEqual(g.last_sync_resource_version(), "32")
 
     @async_test
-    async def test_reflector_stop_watch(self):
+    async def test_stop_watch(self):
         s = new_store(meta_namespace_key_func)
-        g = Reflector(TestLW(None, None), V1Pod(), s, 0)
+        g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0)
         fw = watch.new_fake()
         stop_watch = asyncio.Event()
         stop_watch.set()
@@ -174,7 +174,7 @@ class TestReflector(unittest.TestCase):
             await g._watch_handler(fw, {}, asyncio.Queue(), stop_watch)
 
     @async_test
-    async def test_reflector_list_and_watch(self):
+    async def test_list_and_watch(self):
         created_fakes = asyncio.Queue()
         expected_rvs = ["1", "3"]
 
@@ -216,7 +216,7 @@ class TestReflector(unittest.TestCase):
         self.assertEqual(len(expected_rvs), 0)
 
     @async_test
-    async def test_reflector_list_and_watch_with_errors(self):
+    async def test_list_and_watch_with_errors(self):
         def mk_pod(id_, rv):
             return V1Pod(metadata=V1ObjectMeta(name=id_, resource_version=rv))
 
@@ -301,7 +301,7 @@ class TestReflector(unittest.TestCase):
                 pass
 
     @async_test
-    async def test_reflector_resync(self):
+    async def test_resync(self):
         iteration = 0
         stop_event = asyncio.Event()
         rerr = Exception("expected resync reached")
@@ -326,6 +326,22 @@ class TestReflector(unittest.TestCase):
         r = Reflector(lw, V1Pod(), s, resync_period)
         await r.list_and_watch(stop_event)
         self.assertEqual(iteration, 2)
+
+    @async_test
+    async def test_set_expected_type(self):
+        test_cases = {
+            "None type": {"expected_type_name": _DEFAULT_EXPECTED_TYPE_NAME},
+            "Normal type": {
+                "input_type": V1Pod(),
+                "expected_type_name": "V1Pod",
+                "expected_type": V1Pod,
+            },
+        }
+        for test_name, tc in test_cases.items():
+            r = Reflector.__new__(Reflector)
+            r._set_expected_type(tc.get("input_type"))
+            self.assertEqual(r._expected_type, tc.get("expected_type"))
+            self.assertEqual(r._expected_type_name, tc["expected_type_name"])
 
 
 class TestLW:

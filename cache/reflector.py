@@ -97,11 +97,11 @@ class Reflector:
         return self._last_sync_resource_version
 
     def _set_expected_type(self, expected_type):
-        self._expected_type = type(expected_type)
-        if expected_type is None:
+        self._expected_type = expected_type and type(expected_type)
+        if self._expected_type is None:
             self._expected_type_name = _DEFAULT_EXPECTED_TYPE_NAME
             return
-        self._expected_type_name = str(self._expected_type)
+        self._expected_type_name = self._expected_type.__name__
         # TODO: Handle Unstructured
 
     def _resync_queue(self):
