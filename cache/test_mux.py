@@ -123,6 +123,38 @@ class TestBrodcaster(unittest.TestCase):
         await asyncio.wait_for(done.wait(), wait.FOREVER_TEST_TIMEOUT)
         await m.shutdown()
 
+    @async_test
+    async def test_drop_if_channel_full(self):
+        m = Broadcaster(1, FullChannelBehavior.DROP_IF_CHANNEL_FULL)
+        event1 = {"type": EventType.ADDED, "object": MyType("foo", "hello world 1")}
+        event2 = {"type": EventType.ADDED, "object": MyType("bar", "hello world 2")}
+
+        watches = [await m.watch() for _ in range(2)]
+
+        await m.action(event1["type"], event1["object"])
+        await m.action(event2["type"], event2["object"])
+        await m.shutdown()
+
+        queue = asyncio.Queue(maxsize=len(watches))
+        for i, w in enumerate(watches):
+            await queue.put(None)
+
+            async def coro(watcher, w):
+                try:
+                    async for e in w:
+                        e1 = e
+                        break
+                    else:
+                        assert False
+                    self.assertEqual(e1, event1)
+                    async for e in w:
+                        assert False
+                finally:
+                    queue.task_done()
+
+            asyncio.ensure_future(coro(i, w))
+        await queue.join()
+
 
 class MyType(NamedTuple):
     id: Optional[str] = None

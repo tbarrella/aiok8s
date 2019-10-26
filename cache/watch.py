@@ -25,11 +25,11 @@ class FakeWatcher:
             done, _ = await asyncio.wait(
                 [event, self._task], return_when=asyncio.FIRST_COMPLETED
             )
-            if self._stopped.is_set():
-                raise StopAsyncIteration
             if event in done:
                 self._result.task_done()
                 return await event
+            if self._stopped.is_set():
+                raise StopAsyncIteration
 
     async def stop(self):
         self._stopped.set()

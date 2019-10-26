@@ -157,12 +157,12 @@ class _BroadcasterWatcher:
             done, _ = await asyncio.wait(
                 [event, self._task], return_when=asyncio.FIRST_COMPLETED
             )
-            if self._stopped.is_set():
-                raise StopAsyncIteration
             if event in done:
                 if not self._result.maxsize:
                     self._result.task_done()
                 return await event
+            if self._stopped.is_set():
+                raise StopAsyncIteration
 
     async def stop(self):
         if not self._stopped.is_set():
