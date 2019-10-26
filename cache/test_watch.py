@@ -79,7 +79,7 @@ class TestWatch(unittest.TestCase):
             await f.modify(TestType("bar"))
             await f.delete(TestType("bar"))
             await f.error(TestType("error: blah"))
-            f.stop()
+            await f.stop()
 
         asyncio.ensure_future(sender())
         await consumer(f)

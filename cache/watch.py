@@ -31,7 +31,7 @@ class FakeWatcher:
                 self._result.task_done()
                 return await event
 
-    def stop(self):
+    async def stop(self):
         self._stopped.set()
 
     def is_stopped(self):

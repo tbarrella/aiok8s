@@ -114,7 +114,7 @@ class TestReflector(unittest.TestCase):
         s = new_store(meta_namespace_key_func)
         g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0)
         fw = watch.new_fake()
-        fw.stop()
+        await fw.stop()
         with self.assertRaises(Exception):
             await g._watch_handler(fw, {}, asyncio.Queue(), asyncio.Event())
 
@@ -135,7 +135,7 @@ class TestReflector(unittest.TestCase):
             await fw.add(
                 V1Pod(metadata=V1ObjectMeta(name="baz", resource_version="32"))
             )
-            fw.stop()
+            await fw.stop()
 
         asyncio.ensure_future(aw())
         options = {}
@@ -205,7 +205,7 @@ class TestReflector(unittest.TestCase):
                 V1Pod(metadata=V1ObjectMeta(name=id_, resource_version=sending_rv))
             )
             if sending_rv == "3":
-                fw.stop()
+                await fw.stop()
                 fw = None
 
         for i, id_ in enumerate(ids):
@@ -288,7 +288,7 @@ class TestReflector(unittest.TestCase):
                 async def coro():
                     for e in watch_ret:
                         await fw.action(e["type"], e["object"])
-                    fw.stop()
+                    await fw.stop()
 
                 asyncio.ensure_future(coro())
                 return fw

@@ -51,13 +51,13 @@ class Broadcaster:
                 w = _BroadcasterWatcher(asyncio.Queue(maxsize=length), id_, self)
                 self._watchers[id_] = w
                 for e in queued_events:
-                    await w._result.put(e)
+                    await w._put(e)
 
         await self._block_queue(f)
         return w
 
     async def action(self, action, obj):
-        await self._incoming.put({"type": action, "object": obj})
+        await self._put({"type": action, "object": obj})
 
     async def shutdown(self):
         await self._incoming.put(None)
@@ -67,10 +67,12 @@ class Broadcaster:
         event = asyncio.Event()
 
         async def func():
-            event.set()
-            await f()
+            try:
+                await f()
+            finally:
+                event.set()
 
-        await self._incoming.put(
+        await self._put(
             {
                 "type": _INTERNAL_RUN_FUNCTION_MARKER,
                 "object": _FunctionFakeRuntimeObject(func),
@@ -78,49 +80,64 @@ class Broadcaster:
         )
         await event.wait()
 
-    def _stop_watching(self, id_):
-        w = self._watchers.pop(id_, None)
-        if not w:
-            return
-        w._stopped.set()
+    async def _stop_watching(self, id_):
+        async with self._lock:
+            w = self._watchers.pop(id_, None)
+            if w:
+                w._stopped.set()
 
-    def _close_all(self):
-        for w in self._watchers.values():
-            w._stopped.set()
-        self._watchers = {}
+    async def _close_all(self):
+        async with self._lock:
+            for w in self._watchers.values():
+                w._stopped.set()
+            self._watchers = {}
 
     async def _loop(self):
         while True:
             event = await self._incoming.get()
+            if not self._incoming.maxsize:
+                self._incoming.task_done()
             if event is None:
                 break
             if event["type"] == _INTERNAL_RUN_FUNCTION_MARKER:
-                await event["object"].f()
+                await event["object"]()
                 continue
             await self._distribute(event)
-        self._close_all()
+        await self._close_all()
         self._distributing.set()
 
     async def _distribute(self, event):
         async with self._lock:
             if self._full_channel_behavior is FullChannelBehavior.DROP_IF_CHANNEL_FULL:
                 for w in self._watchers.values():
-                    if not w._stopped.is_set() and not w._result.full():
-                        w._result.put_nowait(event)
+                    if w._stopped.is_set():
+                        continue
+                    try:
+                        await w._put_nowait(event)
+                    except asyncio.QueueFull:
+                        pass
                 return
             for w in self._watchers.values():
                 await asyncio.wait(
                     [
-                        asyncio.ensure_future(w._result.put(event)),
+                        asyncio.ensure_future(w._put(event)),
                         asyncio.ensure_future(w._stopped.wait()),
                     ],
                     return_when=asyncio.FIRST_COMPLETED,
                 )
 
+    async def _put(self, item):
+        await self._incoming.put(item)
+        if not self._incoming.maxsize:
+            await self._incoming.join()
+
 
 class _FunctionFakeRuntimeObject:
     def __init__(self, f):
-        self.f = f
+        self._f = f
+
+    def __call__(self):
+        return self._f()
 
 
 class _BroadcasterWatcher:
@@ -143,9 +160,22 @@ class _BroadcasterWatcher:
             if self._stopped.is_set():
                 raise StopAsyncIteration
             if event in done:
+                if not self._result.maxsize:
+                    self._result.task_done()
                 return await event
 
-    def stop(self):
+    async def stop(self):
         if not self._stopped.is_set():
             self._stopped.set()
-            self._m._stop_watching(self._id)
+            await self._m._stop_watching(self._id)
+
+    async def _put(self, item):
+        await self._result.put(item)
+        if not self._result.maxsize:
+            await self._result.join()
+
+    async def _put_nowait(self, item):
+        self._result.put_nowait(item)
+        if not self._result.maxsize:
+            # TODO: This is wrong
+            await self._result.join()

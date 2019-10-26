@@ -1,7 +1,8 @@
 import asyncio
 import unittest
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 
+from . import wait
 from .mux import Broadcaster, FullChannelBehavior
 from .watch import EventType
 
@@ -83,10 +84,49 @@ class TestBrodcaster(unittest.TestCase):
         await m.shutdown()
         await queue.join()
 
+    @async_test
+    async def test_watcher_close(self):
+        m = Broadcaster(0, FullChannelBehavior.WAIT_IF_CHANNEL_FULL)
+        w = await m.watch()
+        w2 = await m.watch()
+        await w.stop()
+        await m.shutdown()
+        async for _ in w:
+            assert False
+        async for _ in w2:
+            assert False
+        await w.stop()
+        await w2.stop()
+
+    @async_test
+    async def test_watcher_stop_deadlock(self):
+        done = asyncio.Event()
+        m = Broadcaster(0, FullChannelBehavior.WAIT_IF_CHANNEL_FULL)
+
+        async def coro(w0, w1):
+            async def aw0():
+                async for _ in w0:
+                    await w1.stop()
+
+            async def aw1():
+                async for _ in w1:
+                    await w0.stop()
+
+            await asyncio.wait(
+                [asyncio.ensure_future(aw0()), asyncio.ensure_future(aw1())],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            done.set()
+
+        asyncio.ensure_future(coro(await m.watch(), await m.watch()))
+        await m.action(EventType.ADDED, MyType())
+        await asyncio.wait_for(done.wait(), wait.FOREVER_TEST_TIMEOUT)
+        await m.shutdown()
+
 
 class MyType(NamedTuple):
-    id: str
-    value: str
+    id: Optional[str] = None
+    value: Optional[str] = None
 
 
 if __name__ == "__main__":
