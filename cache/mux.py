@@ -17,7 +17,7 @@ class Broadcaster:
         self._watchers = {}
         self._next_watcher = 0
         self._distributing = asyncio.Event()
-        self._incoming = asyncio.Queue(maxsize=queue_length)
+        self._incoming = asyncio.Queue(maxsize=_INCOMING_QUEUE_LENGTH)
         self._watch_queue_length = queue_length
         self._full_channel_behavior = full_channel_behavior
         asyncio.ensure_future(self._loop())
@@ -51,13 +51,13 @@ class Broadcaster:
                 w = _BroadcasterWatcher(asyncio.Queue(maxsize=length), id_, self)
                 self._watchers[id_] = w
                 for e in queued_events:
-                    await w._put(e)
+                    await w._incoming.put(e)
 
         await self._block_queue(f)
         return w
 
     async def action(self, action, obj):
-        await self._put({"type": action, "object": obj})
+        await self._incoming.put({"type": action, "object": obj})
 
     async def shutdown(self):
         await self._incoming.put(None)
@@ -72,7 +72,7 @@ class Broadcaster:
             finally:
                 event.set()
 
-        await self._put(
+        await self._incoming.put(
             {
                 "type": _INTERNAL_RUN_FUNCTION_MARKER,
                 "object": _FunctionFakeRuntimeObject(func),
@@ -95,8 +95,6 @@ class Broadcaster:
     async def _loop(self):
         while True:
             event = await self._incoming.get()
-            if not self._incoming.maxsize:
-                self._incoming.task_done()
             if event is None:
                 break
             if event["type"] == _INTERNAL_RUN_FUNCTION_MARKER:
@@ -125,11 +123,6 @@ class Broadcaster:
                     ],
                     return_when=asyncio.FIRST_COMPLETED,
                 )
-
-    async def _put(self, item):
-        await self._incoming.put(item)
-        if not self._incoming.maxsize:
-            await self._incoming.join()
 
 
 class _FunctionFakeRuntimeObject:
