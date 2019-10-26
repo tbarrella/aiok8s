@@ -113,7 +113,7 @@ class Broadcaster:
                     if w._stopped.is_set():
                         continue
                     try:
-                        await w._put_nowait(event)
+                        w._result.put_nowait(event)
                     except asyncio.QueueFull:
                         pass
                 return
@@ -172,10 +172,4 @@ class _BroadcasterWatcher:
     async def _put(self, item):
         await self._result.put(item)
         if not self._result.maxsize:
-            await self._result.join()
-
-    async def _put_nowait(self, item):
-        self._result.put_nowait(item)
-        if not self._result.maxsize:
-            # TODO: This is wrong
             await self._result.join()
