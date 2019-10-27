@@ -51,7 +51,7 @@ class Broadcaster:
                 w = _BroadcasterWatcher(asyncio.Queue(maxsize=length), id_, self)
                 self._watchers[id_] = w
                 for e in queued_events:
-                    await w._incoming.put(e)
+                    await w._put(e)
 
         await self._block_queue(f)
         return w
