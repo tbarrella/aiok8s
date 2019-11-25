@@ -87,7 +87,7 @@ class TestDeltaFIFO(unittest.TestCase):
         f = DeltaFIFO(test_fifo_object_key_func)
         await f.add(mk_fifo_obj("foo", 10))
 
-        def process(obj):
+        async def process(obj):
             self.assertEqual(obj[0].object.name, "foo")
             raise RequeueError
 
@@ -97,7 +97,7 @@ class TestDeltaFIFO(unittest.TestCase):
         class TestError(Exception):
             pass
 
-        def process(obj):
+        async def process(obj):
             self.assertEqual(obj[0].object.name, "foo")
             raise RequeueError from TestError
 
@@ -109,7 +109,7 @@ class TestDeltaFIFO(unittest.TestCase):
             assert False, "expected error"
         self.assertIsNotNone(f.get_by_key("foo"))
 
-        def process(obj):
+        async def process(obj):
             self.assertEqual(obj[0].object.name, "foo")
 
         await f.pop(process)
@@ -401,7 +401,7 @@ class TestDeltaFIFO(unittest.TestCase):
 async def pop(queue_):
     result = None
 
-    def process(obj):
+    async def process(obj):
         nonlocal result
         result = obj
 

@@ -122,7 +122,7 @@ class DeltaFIFO:
                     continue
                 item = self._items.pop(id_)
                 try:
-                    process(item)
+                    await process(item)
                 except fifo.RequeueError as e:
                     self._add_if_not_present(id_, item)
                     if e.__cause__:
