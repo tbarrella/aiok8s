@@ -80,7 +80,7 @@ class Reflector:
                 # TODO: AllowWatchBookmarks
                 options["timeout_seconds"] = timeout_seconds
                 try:
-                    w = self._lister_watcher.watch(**options)
+                    w = await self._lister_watcher.watch(**options)
                 except Exception:
                     # TODO: Handle ECONNREFUSED
                     return

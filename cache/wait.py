@@ -35,3 +35,15 @@ def jitter(duration, max_factor):
         max_factor = 1
     wait = duration + random.random() * max_factor * duration
     return wait
+
+
+# TODO: test
+async def poll(interval, timeout, condition):
+    await asyncio.wait_for(_poll_internal(interval, condition), timeout)
+
+
+async def _poll_internal(interval, condition):
+    while True:
+        await asyncio.sleep(interval)
+        if condition():
+            return

@@ -128,9 +128,10 @@ class FIFO:
     def has_synced(self):
         return self._populated and not self._initial_population_count
 
-    def close(self):
+    async def close(self):
         self._closed = True
-        self._cond.notify_all()
+        async with self._cond:
+            self._cond.notify_all()
 
     def is_closed(self):
         return self._closed

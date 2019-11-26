@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Callable, NamedTuple, Optional
+from typing import Any, Awaitable, Callable, NamedTuple, Optional
 
 from . import clock, delta_fifo, fifo, reflector, store, wait
 
@@ -12,9 +12,9 @@ class Config(NamedTuple):
     lister_watcher: Any
     process: ProcessFunc
     object_type: Any
-    full_resync_period: int
-    should_resync: Optional[ShouldResyncFunc] = None
+    full_resync_period: float
     retry_on_error: bool
+    should_resync: Optional[ShouldResyncFunc] = None
 
 
 ShouldResyncFunc = Callable[[], bool]
@@ -35,7 +35,7 @@ class _Controller:
     async def run(self, stop_event):
         async def coro():
             await stop_event.wait()
-            self._config.queue.close()
+            await self._config.queue.close()
 
         asyncio.ensure_future(coro())
         r = reflector.Reflector(
@@ -74,21 +74,21 @@ class _Controller:
 
 
 class ResourceEventHandlerFuncs(NamedTuple):
-    add_func: Optional[Callable[[Any], None]] = None
-    update_func: Optional[Callable[[Any, Any], None]] = None
-    delete_func: Optional[Callable[[Any], None]] = None
+    add_func: Optional[Callable[[Any], Awaitable[None]]] = None
+    update_func: Optional[Callable[[Any, Any], Awaitable[None]]] = None
+    delete_func: Optional[Callable[[Any], Awaitable[None]]] = None
 
     async def on_add(self, obj):
         if self.add_func:
-            self.add_func(obj)
+            await self.add_func(obj)
 
     async def on_update(self, old_obj, new_obj):
         if self.update_func:
-            self.update_func(old_obj, new_obj)
+            await self.update_func(old_obj, new_obj)
 
     async def on_delete(self, obj):
         if self.delete_func:
-            self.delete_func(obj)
+            await self.delete_func(obj)
 
 
 def deletion_handling_meta_namespace_key_func(obj):

@@ -351,7 +351,7 @@ class TestLW:
     def list(self, **options):
         return self._list_func(**options)
 
-    def watch(self, **options):
+    async def watch(self, **options):
         return self._watch_func(**options)
 
 
