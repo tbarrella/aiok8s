@@ -1,8 +1,9 @@
 import asyncio
+import random
 import time
 import unittest
 
-from .wait import jitter_until, until
+from .wait import Backoff, WaitTimeoutError, exponential_backoff, jitter_until, until
 
 
 def run(main, *, debug=False):
@@ -132,6 +133,84 @@ class TestWait(unittest.TestCase):
         event.set()
         await received.put(None)
         self.assertLessEqual(time.time(), now + 3)
+
+    @async_test
+    async def test_exponential_backoff(self):
+        opts = Backoff(factor=1, steps=3)
+
+        i = 0
+
+        async def condition():
+            nonlocal i
+            i += 1
+            return False
+
+        with self.assertRaises(WaitTimeoutError):
+            await exponential_backoff(opts, condition)
+        self.assertEqual(i, opts.steps)
+
+        i = 0
+
+        async def condition():
+            nonlocal i
+            i += 1
+            return True
+
+        await exponential_backoff(opts, condition)
+        self.assertEqual(i, 1)
+
+        class TestError(Exception):
+            pass
+
+        async def condition():
+            raise TestError
+
+        with self.assertRaises(TestError):
+            await exponential_backoff(opts, condition)
+
+        i = 1
+
+        async def condition():
+            nonlocal i
+            if i < opts.steps:
+                i += 1
+                return False
+            return True
+
+        await exponential_backoff(opts, condition)
+        self.assertEqual(i, opts.steps)
+
+    def test_backoff_step(self):
+        tests = [
+            {"initial": Backoff(duration=1, steps=0), "want": [1, 1, 1]},
+            {"initial": Backoff(duration=1, steps=1), "want": [1, 1, 1]},
+            {"initial": Backoff(duration=1, factor=1, steps=1), "want": [1, 1, 1]},
+            {"initial": Backoff(duration=1, factor=2, steps=3), "want": [1, 2, 4]},
+            {
+                "initial": Backoff(duration=1, factor=2, steps=3, cap=3),
+                "want": [1, 2, 3],
+            },
+            {
+                "initial": Backoff(duration=1, factor=2, steps=2, cap=3, jitter=0.5),
+                "want": [2, 3, 3],
+            },
+            {
+                "initial": Backoff(duration=1, factor=2, steps=6, jitter=4),
+                "want": [1, 2, 4, 8, 16, 32],
+            },
+        ]
+        for seed in range(5):
+            for tt in tests:
+                initial = Backoff(**tt["initial"].__dict__)
+                random.seed(seed)
+                for want in tt["want"]:
+                    got = initial.step()
+                    if initial.jitter:
+                        self.assertNotEqual(got, want)
+                        diff = (want - got) / want
+                        self.assertLessEqual(diff, initial.jitter)
+                    else:
+                        self.assertEqual(got, want)
 
 
 if __name__ == "__main__":

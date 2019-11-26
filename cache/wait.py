@@ -37,6 +37,47 @@ def jitter(duration, max_factor):
     return wait
 
 
+class WaitTimeoutError(Exception):
+    pass
+
+
+class Backoff:
+    def __init__(self, *, steps, duration=0, factor=0, jitter=0, cap=0):
+        self.duration = duration
+        self.factor = factor
+        self.jitter = jitter
+        self.steps = steps
+        self.cap = cap
+
+    def step(self):
+        if self.steps < 1:
+            if self.jitter:
+                return jitter(self.duration, self.jitter)
+            return self.duration
+        self.steps -= 1
+        duration = self.duration
+        if self.factor:
+            self.duration = self.duration * self.factor
+            if self.cap and self.duration > self.cap:
+                self.duration = self.cap
+                self.steps = 0
+
+        if self.jitter:
+            duration = jitter(duration, self.jitter)
+        return duration
+
+
+async def exponential_backoff(backoff, condition):
+    backoff = Backoff(**backoff.__dict__)
+    while backoff.steps:
+        if await condition():
+            return
+        if backoff.steps == 1:
+            break
+        await asyncio.sleep(backoff.step())
+    raise WaitTimeoutError
+
+
 # TODO: test, rewrite?
 async def poll(interval, timeout, condition):
     await asyncio.wait_for(_poll_internal(interval, condition), timeout)
