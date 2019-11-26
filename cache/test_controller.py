@@ -128,6 +128,80 @@ class TestController(unittest.TestCase):
 
         await output_set_lock.acquire()
 
+    @async_test
+    async def test_update(self):
+        source = fake_controller_source.FakeControllerSource()
+        _FROM = "from"
+        _TO = "to"
+        allowed_transitions = {(_FROM, _TO), (_TO, _TO), (_FROM, _FROM)}
+
+        def pod(name, check, final):
+            labels = {"check": check}
+            if final:
+                labels["final"] = "true"
+            return V1Pod(metadata=V1ObjectMeta(name=name, labels=labels))
+
+        def delete_pod(p):
+            return p.metadata.labels["final"] == "true"
+
+        async def test(name):
+            name = f"a-{name}"
+            await source.add(pod(name, _FROM, False))
+            await source.modify(pod(name, _TO, True))
+
+        tests = [test]
+        threads = 3
+        size = threads * len(tests)
+        test_done_queue = asyncio.Queue(maxsize=size)
+        for _ in range(size):
+            test_done_queue.put_nowait(None)
+
+        watch_event = asyncio.Event()
+
+        async def watch_func(**options):
+            try:
+                return await source.watch(**options)
+            finally:
+                watch_event.set()
+
+        async def update_func(old_obj, new_obj):
+            from_ = old_obj.metadata.labels["check"]
+            to = new_obj.metadata.labels["check"]
+            self.assertIn((from_, to), allowed_transitions)
+            if delete_pod(new_obj):
+                await source.delete(new_obj)
+
+        async def delete_func(obj):
+            test_done_queue.task_done()
+
+        lw = TestLW(source.list, watch_func)
+        h = ResourceEventHandlerFuncs(update_func=update_func, delete_func=delete_func)
+        _, controller = new_informer(lw, V1Pod(), 0, h)
+
+        stop = asyncio.Event()
+        asyncio.ensure_future(controller.run(stop))
+        await watch_event.wait()
+
+        aws = [f(f"{i}-{j}") for i in range(threads) for j, f in enumerate(tests)]
+        await asyncio.gather(*aws)
+        await test_done_queue.join()
+        stop.set()
+
+        # TODO: Figure out why this is necessary...
+        await asyncio.sleep(0.1)
+
+
+class TestLW:
+    def __init__(self, list_func, watch_func):
+        self._list_func = list_func
+        self._watch_func = watch_func
+
+    def list(self, **options):
+        return self._list_func(**options)
+
+    async def watch(self, **options):
+        return await self._watch_func(**options)
+
 
 if __name__ == "__main__":
     unittest.main()
