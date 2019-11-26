@@ -1,0 +1,11 @@
+TODO
+- licensing
+- tox.ini
+- travis
+- stop Event -> Task.cancel()
+- logging
+- refactor testing helpers
+- types
+- rewrite wait.poll()
+- make some APIs private
+- protocols (3.7)
