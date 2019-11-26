@@ -18,7 +18,7 @@ class Config(NamedTuple):
 
 
 ShouldResyncFunc = Callable[[], bool]
-ProcessFunc = Callable[[Any], None]
+ProcessFunc = Callable[[Any], Awaitable[None]]
 
 
 def new(c):
