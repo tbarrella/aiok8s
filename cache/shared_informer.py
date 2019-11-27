@@ -148,17 +148,17 @@ class _SharedIndexInformer:
                     if old is not None:
                         await self._indexer.update(d.object)
                         await self._processor._distribute(
-                            _UpdateNotification(old_obj=old, new_obj=d.obj), is_sync
+                            _UpdateNotification(old_obj=old, new_obj=d.object), is_sync
                         )
                     else:
                         await self._indexer.add(d.object)
                         await self._processor._distribute(
-                            _AddNotification(new_obj=d.obj), is_sync
+                            _AddNotification(new_obj=d.object), is_sync
                         )
                 elif d.type == delta_fifo.DeltaType.DELETED:
                     await self._indexer.delete(d.object)
                     await self._processor._distribute(
-                        _DeleteNotification(old_obj=d.obj), False
+                        _DeleteNotification(old_obj=d.object), False
                     )
                 else:
                     assert False, f"unexpected type {d.type!r}"
@@ -200,8 +200,8 @@ class _SharedProcessor:
         async with self._listeners_lock:
             self._add_listener_locked(listener)
             if self._listeners_started:
-                self._tasks.append(asyncio.ensure_future(listener.run()))
-                self._tasks.append(asyncio.ensure_future(listener.pop()))
+                self._tasks.append(asyncio.ensure_future(listener._run()))
+                self._tasks.append(asyncio.ensure_future(listener._pop()))
 
     def _add_listener_locked(self, listener):
         self._listeners.append(listener)
@@ -211,16 +211,16 @@ class _SharedProcessor:
         async with self._listeners_lock:
             if sync:
                 for listener in self._syncing_listeners:
-                    await listener.add(obj)
+                    await listener._add(obj)
             else:
                 for listener in self._listeners:
-                    await listener.add(obj)
+                    await listener._add(obj)
 
     async def _run(self, stop_event):
         async with self._listeners_lock:
             for listener in self._listeners:
-                self._tasks.append(asyncio.ensure_future(listener.run()))
-                self._tasks.append(asyncio.ensure_future(listener.pop()))
+                self._tasks.append(asyncio.ensure_future(listener._run()))
+                self._tasks.append(asyncio.ensure_future(listener._pop()))
             self._listeners_started = True
         await stop_event.wait()
         async with self._listeners_lock:
@@ -260,33 +260,32 @@ class _ProcessListener:
         self._resync_lock = asyncio.Lock()
         self._determine_next_resync(now)
 
-    async def add(self, notification):
+    async def _add(self, notification):
         await self._add_queue.put(notification)
         await self._add_queue.join()
 
-    async def pop(self):
-        try:
-            next_queue = asyncio.Queue(maxsize=1)
-            notification = None
+    async def _pop(self):
+        async def get():
+            notification_to_add = await self._add_queue.get()
+            self._add_queue.task_done()
+            return notification_to_add
 
+        try:
+            next_queue = None
+            notification = None
             stop_task = asyncio.ensure_future(self._stop_add.wait())
             while True:
-
-                async def get():
-                    notification = await self._add_queue.get()
-                    self._add_queue.task_done()
-                    return notification
-
                 get_task = asyncio.ensure_future(get())
+                put_task = None
                 tasks = [get_task, stop_task]
-
                 if next_queue:
 
                     async def put():
                         await next_queue.put(notification)
                         await next_queue.join()
 
-                    tasks.append(asyncio.ensure_future(put()))
+                    put_task = asyncio.ensure_future(put())
+                    tasks.append(put_task)
 
                 done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                 if self._stop_add.is_set():
@@ -298,7 +297,7 @@ class _ProcessListener:
                         next_queue = self._next_queue
                     else:
                         self._pending_notifications.append(notification_to_add)
-                else:
+                if put_task in done:
                     if self._pending_notifications:
                         notification = self._pending_notifications.popleft()
                     else:
@@ -307,7 +306,7 @@ class _ProcessListener:
         finally:
             self._stop_next.set()
 
-    async def run(self):
+    async def _run(self):
         stop_event = asyncio.Event()
         stop_next_task = asyncio.ensure_future(self._stop_next.wait())
 

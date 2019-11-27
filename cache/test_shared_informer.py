@@ -160,7 +160,6 @@ class TestListener:
         pass
 
     def _handle(self, obj):
-        key, _ = store.meta_namespace_key_func(obj)
         object_meta = obj.metadata
         self._received_item_names.append(object_meta.name)
 
