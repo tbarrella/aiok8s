@@ -84,6 +84,13 @@ async def poll(interval, timeout, condition):
 
 
 # TODO: test, rewrite?
+async def poll_immediate(interval, timeout, condition):
+    if condition():
+        return
+    await poll(interval, timeout, condition)
+
+
+# TODO: test, rewrite?
 async def poll_immediate_until(interval, condition, stop_event):
     poll_task = asyncio.ensure_future(_poll_internal(interval, condition))
     stop_task = asyncio.ensure_future(stop_event.wait())

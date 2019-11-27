@@ -5,7 +5,7 @@ import unittest
 from kubernetes.client.models.v1_object_meta import V1ObjectMeta
 from kubernetes.client.models.v1_pod import V1Pod
 
-from . import clock, fake_controller_source, store
+from . import clock, fake_controller_source, store, wait
 from .controller import (
     ResourceEventHandlerFuncs,
     deletion_handling_meta_namespace_key_func,
@@ -63,6 +63,43 @@ def async_test(coro):
 
 class TestSharedInformer(unittest.TestCase):
     @async_test
+    async def test_listener_resync_periods(self):
+        source = fake_controller_source.FakeControllerSource()
+        await source.add(V1Pod(metadata=V1ObjectMeta(name="pod1")))
+        await source.add(V1Pod(metadata=V1ObjectMeta(name="pod2")))
+
+        informer = new_shared_informer(source, V1Pod(), 1)
+
+        clock_ = clock.FakeClock(time.time())
+        informer._clock = clock_
+        informer._processor._clock = clock_
+
+        listener1 = TestListener("listener1", 0, "pod1", "pod2")
+        await informer.add_event_handler_with_resync_period(
+            listener1, listener1._resync_period
+        )
+
+        listener2 = TestListener("listener2", 2, "pod1", "pod2")
+        await informer.add_event_handler_with_resync_period(
+            listener2, listener2._resync_period
+        )
+
+        listener3 = TestListener("listener3", 3, "pod1", "pod2")
+        await informer.add_event_handler_with_resync_period(
+            listener3, listener3._resync_period
+        )
+        listeners = [listener1, listener2, listener3]
+
+        stop = asyncio.Event()
+        try:
+            asyncio.ensure_future(informer.run(stop))
+
+            for listener in listeners:
+                self.assertTrue(await listener._ok())
+        finally:
+            stop.set()
+
+    @async_test
     async def test_resync_check_period(self):
         source = fake_controller_source.FakeControllerSource()
         informer = new_shared_informer(source, V1Pod(), 12 * 3600)
@@ -110,6 +147,7 @@ class TestListener:
     def __init__(self, name, resync_period, *expected):
         self._resync_period = resync_period
         self._expected_item_names = set(expected)
+        self._received_item_names = []
         self._name = name
 
     async def on_add(self, obj):
@@ -121,10 +159,25 @@ class TestListener:
     async def on_delete(self, obj):
         pass
 
-    def handle(self, obj):
+    def _handle(self, obj):
         key, _ = store.meta_namespace_key_func(obj)
         object_meta = obj.metadata
         self._received_item_names.append(object_meta.name)
+
+    async def _ok(self):
+        try:
+            await wait.poll_immediate(0.1, 2, self._satisfied_expectations)
+        except Exception:
+            return False
+
+        await asyncio.sleep(1)
+        return self._satisfied_expectations()
+
+    def _satisfied_expectations(self):
+        return (
+            len(self._received_item_names) == len(self._expected_item_names)
+            and set(self._received_item_names) == self._expected_item_names
+        )
 
 
 if __name__ == "__main__":

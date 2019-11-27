@@ -99,19 +99,19 @@ class _SharedIndexInformer:
             queue=fifo,
             lister_watcher=self._lister_watcher,
             object_type=self._object_type,
-            full_resync_period=self._resync_period,
+            full_resync_period=self._resync_check_period,
             retry_on_error=False,
             should_resync=self._processor._should_resync,
             process=self.handle_deltas,
         )
 
         async with self._started_lock:
-            self._controller = controller.New(cfg)
+            self._controller = controller.new(cfg)
             self._controller._clock = self._clock
             self._started = True
 
         processor_stop_event = asyncio.Event()
-        task = asyncio.ensure_future(self._processor.run(processor_stop_event))
+        task = asyncio.ensure_future(self._processor._run(processor_stop_event))
         try:
             await self._controller.run(stop_event)
         finally:
@@ -311,12 +311,12 @@ class _ProcessListener:
         stop_event = asyncio.Event()
         stop_next_task = asyncio.ensure_future(self._stop_next.wait())
 
-        async def condition():
-            async def get():
-                notification = await self._next_queue.get()
-                self._next_queue.task_done()
-                return notification
+        async def get():
+            notification = await self._next_queue.get()
+            self._next_queue.task_done()
+            return notification
 
+        async def condition():
             while True:
                 get_task = asyncio.ensure_future(get())
                 await asyncio.wait(
