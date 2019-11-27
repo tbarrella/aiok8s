@@ -96,6 +96,12 @@ class TestSharedInformer(unittest.TestCase):
 
             for listener in listeners:
                 self.assertTrue(await listener._ok())
+
+            for listener in listeners:
+                listener._received_item_names = []
+
+            await clock_.step(2)
+            self.assertTrue(await listener2._ok())
         finally:
             stop.set()
 

@@ -279,12 +279,7 @@ class _ProcessListener:
                 put_task = None
                 tasks = [get_task, stop_task]
                 if next_queue:
-
-                    async def put():
-                        await next_queue.put(notification)
-                        await next_queue.join()
-
-                    put_task = asyncio.ensure_future(put())
+                    put_task = asyncio.ensure_future(next_queue.put(notification))
                     tasks.append(put_task)
 
                 done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -297,7 +292,10 @@ class _ProcessListener:
                         next_queue = self._next_queue
                     else:
                         self._pending_notifications.append(notification_to_add)
+                else:
+                    get_task.cancel()
                 if put_task in done:
+                    await next_queue.join()
                     if self._pending_notifications:
                         notification = self._pending_notifications.popleft()
                     else:
