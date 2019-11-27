@@ -72,7 +72,7 @@ class TestBrodcaster(unittest.TestCase):
         w = await source.watch(resource_version="1")
         asyncio.ensure_future(self.consume(w, ["2", "3"], queue))
 
-        list_ = source.list()
+        list_ = await source.list()
         self.assertEqual(list_.metadata.resource_version, "3")
 
         w2 = await source.watch(resource_version="2")

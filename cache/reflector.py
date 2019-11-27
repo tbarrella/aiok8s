@@ -28,7 +28,7 @@ class Reflector:
         options = {"resource_version": "0"}
 
         async def list_coro():
-            return self._lister_watcher.list(**options)
+            return await self._lister_watcher.list(**options)
 
         list_task = asyncio.ensure_future(list_coro())
         await asyncio.wait([list_task, stop_task], return_when=asyncio.FIRST_COMPLETED)
