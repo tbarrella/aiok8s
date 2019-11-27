@@ -5,12 +5,7 @@ import unittest
 from kubernetes.client.models.v1_object_meta import V1ObjectMeta
 from kubernetes.client.models.v1_pod import V1Pod
 
-from . import clock, fake_controller_source, store, wait
-from .controller import (
-    ResourceEventHandlerFuncs,
-    deletion_handling_meta_namespace_key_func,
-    new_informer,
-)
+from . import clock, fake_controller_source, wait
 from .shared_informer import new_shared_informer
 
 

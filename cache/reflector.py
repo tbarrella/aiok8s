@@ -76,7 +76,7 @@ class Reflector:
         options["resource_version"] = resource_version
         try:
             while not stop_event.is_set():
-                timeout_seconds = _MIN_WATCH_TIMEOUT * (random.random() + 1)
+                timeout_seconds = int(_MIN_WATCH_TIMEOUT * (random.random() + 1))
                 # TODO: AllowWatchBookmarks
                 options["timeout_seconds"] = timeout_seconds
                 try:
