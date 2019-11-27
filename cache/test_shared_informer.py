@@ -102,8 +102,25 @@ class TestSharedInformer(unittest.TestCase):
 
             await clock_.step(2)
             self.assertTrue(await listener2._ok())
+
+            await asyncio.sleep(1)
+            self.assertEqual(len(listener1._received_item_names), 0)
+            self.assertEqual(len(listener3._received_item_names), 0)
+
+            for listener in listeners:
+                listener._received_item_names = []
+
+            await clock_.step(1)
+            self.assertTrue(await listener3._ok())
+
+            await asyncio.sleep(1)
+            self.assertEqual(len(listener1._received_item_names), 0)
+            self.assertEqual(len(listener2._received_item_names), 0)
         finally:
             stop.set()
+
+            # TODO: Figure out why this is necessary...
+            await asyncio.sleep(0.1)
 
     @async_test
     async def test_resync_check_period(self):
@@ -147,6 +164,21 @@ class TestSharedInformer(unittest.TestCase):
         self.assertEqual(informer._processor._listeners[1]._resync_period, 60)
         self.assertEqual(informer._processor._listeners[2]._resync_period, 55)
         self.assertEqual(informer._processor._listeners[3]._resync_period, 5)
+
+    @async_test
+    async def test_initialization_race(self):
+        source = fake_controller_source.FakeControllerSource()
+        informer = new_shared_informer(source, V1Pod(), 1)
+        listener = TestListener("race_listener", 0)
+
+        stop = asyncio.Event()
+        asyncio.ensure_future(
+            informer.add_event_handler_with_resync_period(
+                listener, listener._resync_period
+            )
+        )
+        asyncio.ensure_future(informer.run(stop))
+        stop.set()
 
 
 class TestListener:
