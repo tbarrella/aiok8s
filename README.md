@@ -8,4 +8,3 @@ TODO
 - types
 - rewrite wait.poll()
 - make some APIs private
-- protocols (3.7)

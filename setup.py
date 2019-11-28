@@ -4,11 +4,11 @@ with open("README.md") as f:
     long_description = f.read()
 
 setuptools.setup(
-    name="kubernetes-cache",
+    name="aiok8s",
     version="0.0.0",
     author="Taylor Barrella",
     author_email="tbarrella@gmail.com",
-    description="Kubernetes client cache tools",
+    description="asyncio client tools for Kubernetes",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/tbarrella/kubernetes-cache",
