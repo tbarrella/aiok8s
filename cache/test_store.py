@@ -12,20 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import unittest
 from typing import NamedTuple
 
 from .index import Indexers
 from .store import new_indexer, new_store
-
-
-def async_test(coro):
-    def wrapper(*args, **kwargs):
-        loop = asyncio.new_event_loop()
-        return loop.run_until_complete(coro(*args, **kwargs))
-
-    return wrapper
+from .testing.util import async_test
 
 
 class TestStore(unittest.TestCase):

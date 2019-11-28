@@ -18,54 +18,8 @@ from typing import NamedTuple, Optional
 
 from . import wait
 from .mux import Broadcaster, FullChannelBehavior
+from .testing.util import async_test
 from .watch import EventType
-
-
-def run(main, *, debug=False):
-    loop = asyncio.new_event_loop()
-    try:
-        asyncio.set_event_loop(loop)
-        loop.set_debug(debug)
-        return loop.run_until_complete(main)
-    finally:
-        try:
-            _cancel_all_tasks(loop)
-            loop.run_until_complete(loop.shutdown_asyncgens())
-        finally:
-            asyncio.set_event_loop(None)
-            loop.close()
-
-
-def _cancel_all_tasks(loop):
-    to_cancel = asyncio.all_tasks(loop)
-    if not to_cancel:
-        return
-
-    for task in to_cancel:
-        task.cancel()
-
-    loop.run_until_complete(
-        asyncio.gather(*to_cancel, loop=loop, return_exceptions=True)
-    )
-
-    for task in to_cancel:
-        if task.cancelled():
-            continue
-        if task.exception() is not None:
-            loop.call_exception_handler(
-                {
-                    "message": "unhandled exception during asyncio.run() shutdown",
-                    "exception": task.exception(),
-                    "task": task,
-                }
-            )
-
-
-def async_test(coro):
-    def wrapper(*args, **kwargs):
-        return run(coro(*args, **kwargs))
-
-    return wrapper
 
 
 class TestBrodcaster(unittest.TestCase):
