@@ -15,8 +15,7 @@
 import asyncio
 import unittest
 
-from kubernetes.client.models.v1_object_meta import V1ObjectMeta
-from kubernetes.client.models.v1_pod import V1Pod
+from kubernetes.client.models import V1ObjectMeta, V1Pod
 
 from aiok8s.cache.testing.fake_controller_source import FakeControllerSource
 from aiok8s.cache.testing.util import async_test

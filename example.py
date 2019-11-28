@@ -3,7 +3,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 from kubernetes import client, config, watch
-from kubernetes.client.models.v1_pod import V1Pod
+from kubernetes.client.models import V1Pod
 
 from aiok8s.cache import controller, index, shared_informer
 

@@ -15,11 +15,13 @@
 import asyncio
 import unittest
 
-from kubernetes.client.models.v1_list_meta import V1ListMeta
-from kubernetes.client.models.v1_object_meta import V1ObjectMeta
-from kubernetes.client.models.v1_pod import V1Pod
-from kubernetes.client.models.v1_pod_list import V1PodList
-from kubernetes.client.models.v1_service import V1Service
+from kubernetes.client.models import (
+    V1ListMeta,
+    V1ObjectMeta,
+    V1Pod,
+    V1PodList,
+    V1Service,
+)
 
 from aiok8s.cache import fake_custom_store, fifo, store, wait, watch
 from aiok8s.cache.reflector import (
