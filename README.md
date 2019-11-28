@@ -2,8 +2,7 @@ Most of this code is directly translated from and attributed to
 https://github.com/kubernetes/client-go
 
 TODO
-- test_ -> _test
-- tox.ini
+- test_ -> _test?
 - travis
 - stop Event -> Task.cancel()
 - logging
