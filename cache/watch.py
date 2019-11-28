@@ -13,6 +13,9 @@
 # limitations under the License.
 
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class EventType:
@@ -46,6 +49,7 @@ class FakeWatcher:
                 raise StopAsyncIteration
 
     async def stop(self):
+        logger.debug("Stopping fake watcher.")
         self._stopped.set()
 
     def is_stopped(self):

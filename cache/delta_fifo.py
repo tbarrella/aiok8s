@@ -14,9 +14,12 @@
 
 import asyncio
 import enum
+import logging
 from typing import Any, NamedTuple
 
 from . import fifo, store
+
+logger = logging.getLogger(__name__)
 
 
 class DeltaFIFO:
@@ -104,8 +107,21 @@ class DeltaFIFO:
                     continue
                 try:
                     deleted_obj = self._known_objects.get_by_key(k)
-                except Exception:
+                except Exception as e:
                     deleted_obj = None
+                    logger.error(
+                        "Unexpected error %s during lookup of key %s, "
+                        "placing DeleteFinalStateUnknown marker without object",
+                        e,
+                        k,
+                    )
+                else:
+                    if deleted_obj is None:
+                        logger.info(
+                            "Key %s does not exist in known objects store, "
+                            "placing DeleteFinalStateUnknown marker without object",
+                            k,
+                        )
                 queued_deletions += 1
                 self._queue_action_locked(
                     DeltaType.DELETED, DeletedFinalStateUnknown(k, deleted_obj)
@@ -201,9 +217,20 @@ class DeltaFIFO:
     def _sync_key_locked(self, key):
         try:
             obj = self._known_objects.get_by_key(key)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Unexpected error %s during lookup of key %s, "
+                "unable to queue object for sync",
+                e,
+                key,
+            )
             return
-        if not obj:
+        if obj is None:
+            logger.info(
+                "Key %s does not exist in known objects store, "
+                "unable to queue object for sync",
+                key,
+            )
             return
         id_ = self.key_of(obj)
         if self._items.get(id_):

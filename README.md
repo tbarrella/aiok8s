@@ -4,7 +4,6 @@ https://github.com/kubernetes/client-go
 TODO
 - travis
 - stop Event -> Task.cancel()
-- logging
 - refactor testing helpers
 - types
 - rewrite wait.poll()

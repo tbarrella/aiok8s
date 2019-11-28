@@ -14,9 +14,12 @@
 
 import asyncio
 import collections
+import logging
 from typing import Any, NamedTuple
 
 from . import clock, controller, delta_fifo, index, retry, store, wait
+
+logger = logging.getLogger(__name__)
 
 
 def new_shared_informer(lw, obj_type, resync_period):
@@ -43,7 +46,9 @@ async def wait_for_cache_sync(stop_event, *cache_syncs):
     try:
         await wait.poll_immediate_until(_SYNCED_POLL_PERIOD, condition, stop_event)
     except Exception:
+        logger.info("stop requested")
         return False
+    logger.debug("caches populated")
     return True
 
 
@@ -81,12 +86,30 @@ class _SharedIndexInformer:
     async def add_event_handler_with_resync_period(self, handler, resync_period):
         async with self._started_lock:
             if self._stopped:
+                logger.info(
+                    "Handler %s was not added to shared informer "
+                    "because it has stopped already",
+                    handler,
+                )
                 return
             if resync_period:
                 if resync_period < _MINIMUM_RESYNC_PERIOD:
+                    logger.warning(
+                        "resync_period %s is too small. "
+                        "Changing it to the minimum allowed value of %s",
+                        resync_period,
+                        _MINIMUM_RESYNC_PERIOD,
+                    )
                     resync_period = _MINIMUM_RESYNC_PERIOD
                 if resync_period < self._resync_check_period:
                     if self._started:
+                        logger.warning(
+                            "resync_period %s is smaller than resync_check_period %s "
+                            "and the informer has already started. Changing it to %s",
+                            resync_period,
+                            self._resync_check_period,
+                            self._resync_check_period,
+                        )
                         resync_period = self._resync_check_period
                     else:
                         self._resync_check_period = resync_period
@@ -195,8 +218,19 @@ def _determine_resync_period(desired, check):
     if not desired:
         return 0
     if not check:
+        logger.warning(
+            "The specified resync_period %s is invalid "
+            "because this shared informer doesn't support resyncing",
+            desired,
+        )
         return 0
     if desired < check:
+        logger.warning(
+            "The specified resync_period %s is being increased "
+            "to the minimum resync_check_period %s",
+            desired,
+            check,
+        )
         return check
     return desired
 
@@ -345,7 +379,7 @@ class _ProcessListener:
                 elif isinstance(notification, _DeleteNotification):
                     await self._handler.on_delete(notification.old_obj)
                 else:
-                    raise Exception(f"unrecognized notification: {notification!r}")
+                    logger.error("unrecognized notification: %r", notification)
 
         async def f():
             try:

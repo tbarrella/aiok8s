@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import asyncio
+import logging
 import random
 
 from . import clock, wait, watch
+
+logger = logging.getLogger(__name__)
 
 
 class Reflector:
@@ -35,9 +38,13 @@ class Reflector:
         async def f():
             await self.list_and_watch(stop_event)
 
+        logger.debug(
+            "Starting reflector %s (%s)", self._expected_type_name, self._resync_period
+        )
         await wait.until(f, self._period, stop_event)
 
     async def list_and_watch(self, stop_event):
+        logger.debug("Listing and watching %s", self._expected_type_name)
         stop_task = asyncio.ensure_future(stop_event.wait())
         options = {"resource_version": "0"}
 
@@ -76,6 +83,7 @@ class Reflector:
                     if cancel_event.is_set():
                         return
                     if self.should_resync is None or self.should_resync():
+                        logger.debug("forcing resync")
                         try:
                             await self._store.resync()
                         except Exception as e:
@@ -95,14 +103,18 @@ class Reflector:
                 options["timeout_seconds"] = timeout_seconds
                 try:
                     w = await self._lister_watcher.watch(**options)
-                except Exception:
+                except Exception as e:
                     # TODO: Handle ECONNREFUSED
+                    logger.error("Failed to watch %s: %s", self._expected_type_name, e)
                     return
                 try:
                     await self._watch_handler(
                         w, options, resync_error_queue, stop_event
                     )
-                except Exception:
+                except Exception as e:
+                    logger.warning(
+                        "watch of %s ended with: %s", self._expected_type_name, e
+                    )
                     return
         finally:
             cancel_event.set()
@@ -187,7 +199,15 @@ class Reflector:
                 event_count += 1
             watch_duration = self._clock.since(start)
             if watch_duration < 1 and not event_count:
-                raise Exception
+                raise Exception(
+                    "very short watch: Unexpected watch close - "
+                    "watch lasted less than a second and no items received"
+                )
+            logger.debug(
+                "Watch close - %s total %s items received",
+                self._expected_type_name,
+                event_count,
+            )
         finally:
             await w.stop()
 
