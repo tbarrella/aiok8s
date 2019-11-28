@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import annotations
-
 import asyncio
 from typing import Any, Awaitable, Callable, NamedTuple, Optional
 
 from . import clock, delta_fifo, fifo, reflector, store, wait
+
+ShouldResyncFunc = Callable[[], bool]
+ProcessFunc = Callable[[Any], Awaitable[None]]
 
 
 class Config(NamedTuple):
@@ -29,10 +30,6 @@ class Config(NamedTuple):
     full_resync_period: float
     retry_on_error: bool
     should_resync: Optional[ShouldResyncFunc] = None
-
-
-ShouldResyncFunc = Callable[[], bool]
-ProcessFunc = Callable[[Any], Awaitable[None]]
 
 
 def new(c):
