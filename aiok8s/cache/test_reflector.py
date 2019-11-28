@@ -203,15 +203,15 @@ class TestReflector(unittest.TestCase):
             {
                 "list": mk_list("1"),
                 "events": [
-                    {"type": watch.EventType.ADDED, "object": mk_pod("foo", "2")},
-                    {"type": watch.EventType.ADDED, "object": mk_pod("bar", "3")},
+                    watch.Event(watch.EventType.ADDED, mk_pod("foo", "2")),
+                    watch.Event(watch.EventType.ADDED, mk_pod("bar", "3")),
                 ],
             },
             {
                 "list": mk_list("3", mk_pod("foo", "2"), mk_pod("bar", "3")),
                 "events": [
-                    {"type": watch.EventType.DELETED, "object": mk_pod("foo", "4")},
-                    {"type": watch.EventType.ADDED, "object": mk_pod("qux", "5")},
+                    watch.Event(watch.EventType.DELETED, mk_pod("foo", "4")),
+                    watch.Event(watch.EventType.ADDED, mk_pod("qux", "5")),
                 ],
             },
             {"list_err": Exception("a list error")},
@@ -221,9 +221,7 @@ class TestReflector(unittest.TestCase):
             },
             {
                 "list": mk_list("5", mk_pod("bar", "3"), mk_pod("qux", "5")),
-                "events": [
-                    {"type": watch.EventType.ADDED, "object": mk_pod("baz", "6")}
-                ],
+                "events": [watch.Event(watch.EventType.ADDED, mk_pod("baz", "6"))],
             },
             {
                 "list": mk_list(
@@ -262,7 +260,7 @@ class TestReflector(unittest.TestCase):
 
                 async def coro():
                     for e in watch_ret:
-                        await fw.action(e["type"], e["object"])
+                        await fw.action(e.type, e.object)
                     await fw.stop()
 
                 asyncio.ensure_future(coro())

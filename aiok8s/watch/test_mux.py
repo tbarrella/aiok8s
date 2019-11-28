@@ -26,13 +26,10 @@ class TestBrodcaster(unittest.TestCase):
     @async_test
     async def test(self):
         table = [
-            {"type": watch.EventType.ADDED, "object": MyType("foo", "hello world 1")},
-            {"type": watch.EventType.ADDED, "object": MyType("bar", "hello world 2")},
-            {
-                "type": watch.EventType.MODIFIED,
-                "object": MyType("foo", "goodbye world 3"),
-            },
-            {"type": watch.EventType.DELETED, "object": MyType("bar", "hello world 4")},
+            watch.Event(watch.EventType.ADDED, MyType("foo", "hello world 1")),
+            watch.Event(watch.EventType.ADDED, MyType("bar", "hello world 2")),
+            watch.Event(watch.EventType.MODIFIED, MyType("foo", "goodbye world 3")),
+            watch.Event(watch.EventType.DELETED, MyType("bar", "hello world 4")),
         ]
 
         m = Broadcaster(0, FullChannelBehavior.WAIT_IF_CHANNEL_FULL)
@@ -51,7 +48,7 @@ class TestBrodcaster(unittest.TestCase):
 
             asyncio.ensure_future(coro(i, await m.watch()))
         for item in table:
-            await m.action(item["type"], item["object"])
+            await m.action(item.type, item.object)
         await m.shutdown()
         await queue.join()
 
@@ -97,19 +94,13 @@ class TestBrodcaster(unittest.TestCase):
     @async_test
     async def test_drop_if_channel_full(self):
         m = Broadcaster(1, FullChannelBehavior.DROP_IF_CHANNEL_FULL)
-        event1 = {
-            "type": watch.EventType.ADDED,
-            "object": MyType("foo", "hello world 1"),
-        }
-        event2 = {
-            "type": watch.EventType.ADDED,
-            "object": MyType("bar", "hello world 2"),
-        }
+        event1 = watch.Event(watch.EventType.ADDED, MyType("foo", "hello world 1"))
+        event2 = watch.Event(watch.EventType.ADDED, MyType("bar", "hello world 2"))
 
         watches = [await m.watch() for _ in range(2)]
 
-        await m.action(event1["type"], event1["object"])
-        await m.action(event2["type"], event2["object"])
+        await m.action(event1.type, event1.object)
+        await m.action(event2.type, event2.object)
         await m.shutdown()
 
         queue = asyncio.Queue(maxsize=len(watches))

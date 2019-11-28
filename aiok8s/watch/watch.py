@@ -14,6 +14,7 @@
 
 import asyncio
 import logging
+from typing import Any, NamedTuple
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,11 @@ class EventType:
     DELETED = "DELETED"
     BOOKMARK = "BOOKMARK"
     ERROR = "ERROR"
+
+
+class Event(NamedTuple):
+    type: str
+    object: Any
 
 
 class FakeWatcher:
@@ -75,7 +81,7 @@ class FakeWatcher:
 
     async def action(self, action, obj):
         async with self._mutex:
-            await self._result.put({"type": action, "object": obj})
+            await self._result.put(Event(action, obj))
             await self._result.join()
 
 
