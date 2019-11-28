@@ -5,6 +5,7 @@ from kubernetes import client, config, watch
 from kubernetes.client.models import V1Pod
 
 from aiok8s.cache import shared_informer
+from aiok8s.watch.watch import Event
 
 
 """
@@ -118,8 +119,14 @@ class Watch:
     async def _get_next(self):
         loop = asyncio.get_running_loop()
         with ThreadPoolExecutor() as pool:
-            # TODO: Handle StopIteration
-            return await loop.run_in_executor(pool, lambda: next(self._stream))
+            return await loop.run_in_executor(pool, self._get_event)
+
+    def _get_event(self):
+        try:
+            event = next(self._stream)
+        except StopIteration:
+            raise StopAsyncIteration
+        return Event(event["type"], event["object"])
 
 
 if __name__ == "__main__":
