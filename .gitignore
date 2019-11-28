@@ -1,4 +1,5 @@
 *.egg-info/
 *.swp
+.mypy_cache/
 .tox/
 __pycache__/
