@@ -1,9 +1,12 @@
 import asyncio
+import sys
 
 
 def async_test(coro):
+    run = _run if sys.version_info[1] < 7 else asyncio.run
+
     def wrapper(*args, **kwargs):
-        return _run(coro(*args, **kwargs))
+        return run(coro(*args, **kwargs))
 
     return wrapper
 
