@@ -19,10 +19,10 @@ from kubernetes.client.models.v1_object_meta import V1ObjectMeta
 from kubernetes.client.models.v1_pod import V1Pod
 
 from .fake_controller_source import FakeControllerSource
-from .testing.util import async_test
+from .util import async_test
 
 
-class TestBrodcaster(unittest.TestCase):
+class TestFakeControllerSource(unittest.TestCase):
     @async_test
     async def test_rc_number(self):
         def pod(name):

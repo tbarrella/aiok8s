@@ -21,12 +21,13 @@ from collections import defaultdict
 from kubernetes.client.models.v1_object_meta import V1ObjectMeta
 from kubernetes.client.models.v1_pod import V1Pod
 
-from . import fake_controller_source, wait
+from . import wait
 from .controller import (
     ResourceEventHandlerFuncs,
     deletion_handling_meta_namespace_key_func,
     new_informer,
 )
+from .testing import fake_controller_source
 from .testing.util import async_test
 
 

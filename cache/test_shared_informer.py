@@ -19,8 +19,9 @@ import unittest
 from kubernetes.client.models.v1_object_meta import V1ObjectMeta
 from kubernetes.client.models.v1_pod import V1Pod
 
-from . import clock, fake_controller_source, wait
+from . import clock, wait
 from .shared_informer import new_shared_informer
+from .testing import fake_controller_source
 from .testing.util import async_test
 
 
