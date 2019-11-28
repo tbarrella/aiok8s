@@ -15,7 +15,7 @@
 import asyncio
 import time
 
-from aiok8s.cache import time_
+from aiok8s.util import _time
 
 
 class RealClock:
@@ -26,7 +26,7 @@ class RealClock:
         return time.time() - ts
 
     def new_timer(self, d):
-        return _RealTimer(time_.Timer(d))
+        return _RealTimer(_time.Timer(d))
 
 
 class FakePassiveClock:

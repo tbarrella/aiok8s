@@ -17,7 +17,8 @@ import collections
 import logging
 from typing import Any, NamedTuple
 
-from aiok8s.cache import clock, controller, delta_fifo, index, retry, store, wait
+from aiok8s.cache import controller, delta_fifo, index, store
+from aiok8s.util import clock, retry, wait
 
 logger = logging.getLogger(__name__)
 

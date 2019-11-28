@@ -15,7 +15,8 @@
 import asyncio
 from typing import Any, Awaitable, Callable, NamedTuple, Optional
 
-from aiok8s.cache import clock, delta_fifo, fifo, reflector, store, wait
+from aiok8s.cache import delta_fifo, fifo, reflector, store
+from aiok8s.util import clock, wait
 
 ShouldResyncFunc = Callable[[], bool]
 ProcessFunc = Callable[[Any], Awaitable[None]]

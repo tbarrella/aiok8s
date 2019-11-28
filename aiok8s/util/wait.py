@@ -15,7 +15,7 @@
 import asyncio
 import random
 
-from aiok8s.cache import time_
+from aiok8s.util import _time
 
 FOREVER_TEST_TIMEOUT = 30
 
@@ -33,10 +33,10 @@ async def jitter_until(f, period, jitter_factor, sliding, stop_event):
             jittered_period = period
         if not sliding:
             # TODO: Reuse
-            t = time_.Timer(jittered_period)
+            t = _time.Timer(jittered_period)
         await f()
         if sliding:
-            t = time_.Timer(jittered_period)
+            t = _time.Timer(jittered_period)
 
         await asyncio.wait(
             [asyncio.ensure_future(t.c.get()), stop],

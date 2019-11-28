@@ -23,13 +23,15 @@ from kubernetes.client.models import (
     V1Service,
 )
 
-from aiok8s.cache import fake_custom_store, fifo, store, wait, watch
+from aiok8s.cache import fake_custom_store, fifo, store
 from aiok8s.cache.reflector import (
     _DEFAULT_EXPECTED_TYPE_NAME,
     Reflector,
     StopRequestedError,
 )
 from aiok8s.cache.testing.util import async_test
+from aiok8s.util import wait
+from aiok8s.watch import watch
 
 
 class TestReflector(unittest.TestCase):

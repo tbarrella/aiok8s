@@ -18,7 +18,7 @@ import time
 import unittest
 
 from aiok8s.cache.testing.util import async_test
-from aiok8s.cache.wait import (
+from aiok8s.util.wait import (
     Backoff,
     WaitTimeoutError,
     exponential_backoff,

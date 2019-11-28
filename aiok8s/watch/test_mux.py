@@ -16,9 +16,10 @@ import asyncio
 import unittest
 from typing import NamedTuple, Optional
 
-from aiok8s.cache import wait, watch
-from aiok8s.cache.mux import Broadcaster, FullChannelBehavior
 from aiok8s.cache.testing.util import async_test
+from aiok8s.util import wait
+from aiok8s.watch import watch
+from aiok8s.watch.mux import Broadcaster, FullChannelBehavior
 
 
 class TestBrodcaster(unittest.TestCase):

@@ -20,7 +20,7 @@ from collections import defaultdict
 
 from kubernetes.client.models import V1ObjectMeta, V1Pod
 
-from aiok8s.cache import wait
+from aiok8s.util import wait
 from aiok8s.cache.controller import (
     ResourceEventHandlerFuncs,
     deletion_handling_meta_namespace_key_func,

@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from aiok8s.cache import wait
+from aiok8s.util import wait
 
 DEFAULT_RETRY = wait.Backoff(steps=5, duration=0.01, factor=1, jitter=0.1)

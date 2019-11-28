@@ -18,10 +18,10 @@ import unittest
 
 from kubernetes.client.models import V1ObjectMeta, V1Pod
 
-from aiok8s.cache import clock, wait
 from aiok8s.cache.shared_informer import new_shared_informer
 from aiok8s.cache.testing import fake_controller_source
 from aiok8s.cache.testing.util import async_test
+from aiok8s.util import clock, wait
 
 
 class TestSharedInformer(unittest.TestCase):
