@@ -15,8 +15,9 @@
 import asyncio
 import copy
 import random
-from typing import Any, NamedTuple, Sequence
+from typing import NamedTuple
 
+from aiok8s.api import meta
 from aiok8s.watch import mux, watch
 
 
@@ -49,9 +50,9 @@ class FakeControllerSource:
 
     async def change(self, e, watch_probability):
         async with self._lock:
-            accessor = e["object"]
+            accessor = meta.accessor(e["object"])
             resource_version = len(self._changes) + 1
-            accessor.metadata.resource_version = str(resource_version)
+            accessor.resource_version = str(resource_version)
             self._changes.append(e)
             key = self._key(accessor)
             if e["type"] in (watch.EventType.ADDED, watch.EventType.MODIFIED):
@@ -64,8 +65,12 @@ class FakeControllerSource:
     async def list(self, **options):
         async with self._lock:
             list_ = self._get_list_items_locked()
+            list_obj = _List()
+            meta.set_list(list_obj, list_)
+            list_accessor = meta.list_accessor(list_obj)
             resource_version = len(self._changes)
-            return _List(_Metadata(str(resource_version)), list_)
+            list_accessor.resource_version = str(resource_version)
+            return list_obj
 
     async def watch(self, **options):
         async with self._lock:
@@ -88,21 +93,19 @@ class FakeControllerSource:
 
     @classmethod
     def _key(cls, accessor):
-        return _NNU(
-            accessor.metadata.namespace, accessor.metadata.name, accessor.metadata.uid
-        )
+        return _NNU(accessor.namespace, accessor.name, accessor.uid)
 
     def _get_list_items_locked(self):
         return list(map(copy.deepcopy, self.items.values()))
 
 
-class _Metadata(NamedTuple):
-    resource_version: str
+class _Metadata:
+    pass
 
 
-class _List(NamedTuple):
-    metadata: _Metadata
-    items: Sequence[Any]
+class _List:
+    def __init__(self):
+        self.metadata = _Metadata()
 
 
 class _NNU(NamedTuple):

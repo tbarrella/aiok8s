@@ -16,6 +16,7 @@ import asyncio
 import logging
 import random
 
+from aiok8s.api import meta
 from aiok8s.util import clock, wait
 from aiok8s.watch import watch
 
@@ -57,9 +58,9 @@ class Reflector:
         if stop_event.is_set():
             return
         list_ = await list_task
-        list_meta = list_.metadata
+        list_meta = meta.list_accessor(list_)
         resource_version = list_meta.resource_version
-        items = list_.items
+        items = meta.extract_list(list_)
         await self._sync_with(items, resource_version)
         self._set_last_sync_resource_version(resource_version)
 
@@ -176,10 +177,10 @@ class Reflector:
                     continue
                 # TODO: Handle GVK
                 try:
-                    meta = event["object"].metadata
+                    metadata = meta.accessor(event["object"])
                 except AttributeError:
                     continue
-                new_resource_version = meta.resource_version
+                new_resource_version = metadata.resource_version
                 if event["type"] == watch.EventType.ADDED:
                     try:
                         await self._store.add(event["object"])

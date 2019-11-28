@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from aiok8s.api import meta
 from aiok8s.cache import index, thread_safe_store
 
 
@@ -27,10 +28,10 @@ class ExplicitKey(str):
 def meta_namespace_key_func(obj):
     if isinstance(obj, ExplicitKey):
         return str(obj)
-    meta = obj.metadata
-    if meta.namespace:
-        return f"{meta.namespace}/{meta.name}"
-    return meta.name
+    metadata = meta.accessor(obj)
+    if metadata.namespace:
+        return f"{metadata.namespace}/{metadata.name}"
+    return metadata.name
 
 
 def new_store(key_func):
