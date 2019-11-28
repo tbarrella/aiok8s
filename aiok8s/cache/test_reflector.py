@@ -27,7 +27,7 @@ from aiok8s.cache import fake_custom_store, fifo, store
 from aiok8s.cache.reflector import (
     _DEFAULT_EXPECTED_TYPE_NAME,
     Reflector,
-    StopRequestedError,
+    _StopRequestedError,
 )
 from aiok8s.cache.testing.util import async_test
 from aiok8s.util import wait
@@ -145,7 +145,7 @@ class TestReflector(unittest.TestCase):
         fw = watch.new_fake()
         stop_watch = asyncio.Event()
         stop_watch.set()
-        with self.assertRaises(StopRequestedError):
+        with self.assertRaises(_StopRequestedError):
             await g._watch_handler(fw, {}, asyncio.Queue(), stop_watch)
 
     @async_test

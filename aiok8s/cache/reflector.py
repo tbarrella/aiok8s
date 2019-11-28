@@ -163,7 +163,7 @@ class Reflector:
                     return_when=asyncio.FIRST_COMPLETED,
                 )
                 if stop_event.is_set():
-                    raise StopRequestedError
+                    raise _StopRequestedError
                 if error_task in done:
                     raise await error_task
                 event = await event_task
@@ -221,5 +221,5 @@ _DEFAULT_EXPECTED_TYPE_NAME = "<unspecified>"
 _MIN_WATCH_TIMEOUT = 5 * 60
 
 
-class StopRequestedError(Exception):
+class _StopRequestedError(Exception):
     pass
