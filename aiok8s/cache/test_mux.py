@@ -16,20 +16,22 @@ import asyncio
 import unittest
 from typing import NamedTuple, Optional
 
-from . import wait
-from .mux import Broadcaster, FullChannelBehavior
-from .testing.util import async_test
-from .watch import EventType
+from aiok8s.cache import wait, watch
+from aiok8s.cache.mux import Broadcaster, FullChannelBehavior
+from aiok8s.cache.testing.util import async_test
 
 
 class TestBrodcaster(unittest.TestCase):
     @async_test
     async def test(self):
         table = [
-            {"type": EventType.ADDED, "object": MyType("foo", "hello world 1")},
-            {"type": EventType.ADDED, "object": MyType("bar", "hello world 2")},
-            {"type": EventType.MODIFIED, "object": MyType("foo", "goodbye world 3")},
-            {"type": EventType.DELETED, "object": MyType("bar", "hello world 4")},
+            {"type": watch.EventType.ADDED, "object": MyType("foo", "hello world 1")},
+            {"type": watch.EventType.ADDED, "object": MyType("bar", "hello world 2")},
+            {
+                "type": watch.EventType.MODIFIED,
+                "object": MyType("foo", "goodbye world 3"),
+            },
+            {"type": watch.EventType.DELETED, "object": MyType("bar", "hello world 4")},
         ]
 
         m = Broadcaster(0, FullChannelBehavior.WAIT_IF_CHANNEL_FULL)
@@ -87,15 +89,21 @@ class TestBrodcaster(unittest.TestCase):
             done.set()
 
         asyncio.ensure_future(coro(await m.watch(), await m.watch()))
-        await m.action(EventType.ADDED, MyType())
+        await m.action(watch.EventType.ADDED, MyType())
         await asyncio.wait_for(done.wait(), wait.FOREVER_TEST_TIMEOUT)
         await m.shutdown()
 
     @async_test
     async def test_drop_if_channel_full(self):
         m = Broadcaster(1, FullChannelBehavior.DROP_IF_CHANNEL_FULL)
-        event1 = {"type": EventType.ADDED, "object": MyType("foo", "hello world 1")}
-        event2 = {"type": EventType.ADDED, "object": MyType("bar", "hello world 2")}
+        event1 = {
+            "type": watch.EventType.ADDED,
+            "object": MyType("foo", "hello world 1"),
+        }
+        event2 = {
+            "type": watch.EventType.ADDED,
+            "object": MyType("bar", "hello world 2"),
+        }
 
         watches = [await m.watch() for _ in range(2)]
 

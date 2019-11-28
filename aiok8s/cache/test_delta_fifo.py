@@ -16,9 +16,15 @@ import asyncio
 import unittest
 from typing import Any, NamedTuple
 
-from .delta_fifo import DeletedFinalStateUnknown, Delta, DeltaFIFO, Deltas, DeltaType
-from .fifo import ProcessError, RequeueError
-from .testing.util import async_test
+from aiok8s.cache import fifo
+from aiok8s.cache.delta_fifo import (
+    DeletedFinalStateUnknown,
+    Delta,
+    DeltaFIFO,
+    Deltas,
+    DeltaType,
+)
+from aiok8s.cache.testing.util import async_test
 
 
 class TestDeltaFIFO(unittest.TestCase):
@@ -57,7 +63,7 @@ class TestDeltaFIFO(unittest.TestCase):
 
         async def process(obj):
             self.assertEqual(obj[0].object.name, "foo")
-            raise RequeueError
+            raise fifo.RequeueError
 
         await f.pop(process)
         self.assertIsNotNone(f.get_by_key("foo"))
@@ -67,11 +73,11 @@ class TestDeltaFIFO(unittest.TestCase):
 
         async def process(obj):
             self.assertEqual(obj[0].object.name, "foo")
-            raise RequeueError from TestError
+            raise fifo.RequeueError from TestError
 
         try:
             await f.pop(process)
-        except ProcessError as e:
+        except fifo.ProcessError as e:
             self.assertIsInstance(e.__cause__, TestError)
         else:
             assert False, "expected error"

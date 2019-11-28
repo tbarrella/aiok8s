@@ -15,9 +15,9 @@
 import unittest
 from typing import NamedTuple
 
-from .index import Indexers
-from .store import new_indexer, new_store
-from .testing.util import async_test
+from aiok8s.cache import index
+from aiok8s.cache.store import new_indexer, new_store
+from aiok8s.cache.testing.util import async_test
 
 
 class TestStore(unittest.TestCase):
@@ -78,7 +78,7 @@ def test_store_index_func(obj):
 
 
 def test_store_indexers():
-    return Indexers(by_val=test_store_index_func)
+    return index.Indexers(by_val=test_store_index_func)
 
 
 class TestStoreObject(NamedTuple):

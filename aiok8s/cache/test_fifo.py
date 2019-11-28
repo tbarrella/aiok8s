@@ -16,8 +16,8 @@ import asyncio
 import unittest
 from typing import Any, NamedTuple
 
-from .fifo import FIFO, ProcessError, RequeueError
-from .testing.util import async_test
+from aiok8s.cache.fifo import FIFO, ProcessError, RequeueError
+from aiok8s.cache.testing.util import async_test
 
 
 class TestFIFO(unittest.TestCase):

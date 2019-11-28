@@ -15,8 +15,8 @@
 import time
 import unittest
 
-from .clock import FakeClock, FakePassiveClock
-from .testing.util import async_test
+from aiok8s.cache.clock import FakeClock, FakePassiveClock
+from aiok8s.cache.testing.util import async_test
 
 
 class TestClock(unittest.TestCase):

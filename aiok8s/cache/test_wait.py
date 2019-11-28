@@ -17,8 +17,14 @@ import random
 import time
 import unittest
 
-from .testing.util import async_test
-from .wait import Backoff, WaitTimeoutError, exponential_backoff, jitter_until, until
+from aiok8s.cache.testing.util import async_test
+from aiok8s.cache.wait import (
+    Backoff,
+    WaitTimeoutError,
+    exponential_backoff,
+    jitter_until,
+    until,
+)
 
 
 class TestWait(unittest.TestCase):

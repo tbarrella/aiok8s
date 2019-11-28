@@ -21,12 +21,13 @@ from kubernetes.client.models.v1_pod import V1Pod
 from kubernetes.client.models.v1_pod_list import V1PodList
 from kubernetes.client.models.v1_service import V1Service
 
-from . import wait, watch
-from .fake_custom_store import FakeCustomStore
-from .fifo import FIFO
-from .reflector import _DEFAULT_EXPECTED_TYPE_NAME, Reflector, StopRequestedError
-from .store import meta_namespace_key_func, new_store
-from .testing.util import async_test
+from aiok8s.cache import fake_custom_store, fifo, store, wait, watch
+from aiok8s.cache.reflector import (
+    _DEFAULT_EXPECTED_TYPE_NAME,
+    Reflector,
+    StopRequestedError,
+)
+from aiok8s.cache.testing.util import async_test
 
 
 class TestReflector(unittest.TestCase):
@@ -39,7 +40,9 @@ class TestReflector(unittest.TestCase):
             return V1PodList(metadata=V1ListMeta(resource_version="1"), items=[])
 
         lister_watcher = TestLW(list_func, lambda **_: fw)
-        r = Reflector(lister_watcher, V1Pod(), new_store(meta_namespace_key_func), 0)
+        r = Reflector(
+            lister_watcher, V1Pod(), store.new_store(store.meta_namespace_key_func), 0
+        )
         asyncio.ensure_future(r.list_and_watch(asyncio.Event()))
         await fw.error(pod)
 
@@ -52,14 +55,14 @@ class TestReflector(unittest.TestCase):
     @async_test
     async def test_run_until(self):
         stop_event = asyncio.Event()
-        store = new_store(meta_namespace_key_func)
+        s = store.new_store(store.meta_namespace_key_func)
         fw = watch.new_fake()
 
         def list_func(**options):
             return V1PodList(metadata=V1ListMeta(resource_version="1"), items=[])
 
         lister_watcher = TestLW(list_func, lambda **_: fw)
-        r = Reflector(lister_watcher, V1Pod(), store, 0)
+        r = Reflector(lister_watcher, V1Pod(), s, 0)
         asyncio.ensure_future(r.run(stop_event))
         await fw.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
         stop_event.set()
@@ -72,14 +75,14 @@ class TestReflector(unittest.TestCase):
 
     @async_test
     async def test_resync_queue(self):
-        s = new_store(meta_namespace_key_func)
+        s = store.new_store(store.meta_namespace_key_func)
         g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0.001)
         a, _ = g._resync_queue()
         await asyncio.wait_for(a.get(), wait.FOREVER_TEST_TIMEOUT)
 
     @async_test
     async def test_watch_handler_error(self):
-        s = new_store(meta_namespace_key_func)
+        s = store.new_store(store.meta_namespace_key_func)
         g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0)
         fw = watch.new_fake()
         await fw.stop()
@@ -88,7 +91,7 @@ class TestReflector(unittest.TestCase):
 
     @async_test
     async def test_watch_handler(self):
-        s = new_store(meta_namespace_key_func)
+        s = store.new_store(store.meta_namespace_key_func)
         g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0)
         fw = watch.new_fake()
         await s.add(V1Pod(metadata=V1ObjectMeta(name="foo")))
@@ -133,7 +136,7 @@ class TestReflector(unittest.TestCase):
 
     @async_test
     async def test_stop_watch(self):
-        s = new_store(meta_namespace_key_func)
+        s = store.new_store(store.meta_namespace_key_func)
         g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0)
         fw = watch.new_fake()
         stop_watch = asyncio.Event()
@@ -159,7 +162,7 @@ class TestReflector(unittest.TestCase):
             return fw
 
         lw = TestLW(list_func, watch_func)
-        s = FIFO(meta_namespace_key_func)
+        s = fifo.FIFO(store.meta_namespace_key_func)
         r = Reflector(lw, V1Pod(), s, 0)
         asyncio.ensure_future(r.list_and_watch(asyncio.Event()))
 
@@ -225,7 +228,7 @@ class TestReflector(unittest.TestCase):
             },
         ]
 
-        s = FIFO(meta_namespace_key_func)
+        s = fifo.FIFO(store.meta_namespace_key_func)
         for item in table:
             if "list" in item:
                 current = s.list()
@@ -280,7 +283,7 @@ class TestReflector(unittest.TestCase):
             if iteration == 2:
                 raise rerr
 
-        s = FakeCustomStore(resync_func=resync_func)
+        s = fake_custom_store.FakeCustomStore(resync_func=resync_func)
 
         def list_func(**options):
             return V1PodList(metadata=V1ListMeta(resource_version="0"), items=[])

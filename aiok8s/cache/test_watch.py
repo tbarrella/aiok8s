@@ -15,8 +15,8 @@
 import asyncio
 import unittest
 
-from .testing.util import async_test
-from .watch import EventType, new_fake
+from aiok8s.cache.testing.util import async_test
+from aiok8s.cache.watch import EventType, new_fake
 
 
 class TestWatch(unittest.TestCase):

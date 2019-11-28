@@ -18,8 +18,8 @@ import unittest
 from kubernetes.client.models.v1_object_meta import V1ObjectMeta
 from kubernetes.client.models.v1_pod import V1Pod
 
-from .fake_controller_source import FakeControllerSource
-from .util import async_test
+from aiok8s.cache.testing.fake_controller_source import FakeControllerSource
+from aiok8s.cache.testing.util import async_test
 
 
 class TestFakeControllerSource(unittest.TestCase):
