@@ -3,8 +3,8 @@ https://github.com/kubernetes/client-go
 
 TODO
 - travis
-- stop Event -> Task.cancel()
+- stop Event -> Task.cancel()?
 - refactor testing helpers
 - types
-- rewrite wait.poll()
+- rewrite wait.poll()?
 - make some APIs private
