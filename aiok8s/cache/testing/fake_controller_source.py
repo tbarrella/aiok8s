@@ -17,7 +17,7 @@ import copy
 import random
 from typing import Any, NamedTuple, Sequence
 
-from .. import mux, watch
+from aiok8s.cache import mux, watch
 
 
 class FakeControllerSource:

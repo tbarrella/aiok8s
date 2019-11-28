@@ -16,7 +16,7 @@ import asyncio
 import logging
 import random
 
-from . import clock, wait, watch
+from aiok8s.cache import clock, wait, watch
 
 logger = logging.getLogger(__name__)
 

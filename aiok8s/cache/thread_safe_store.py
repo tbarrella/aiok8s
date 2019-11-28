@@ -15,7 +15,7 @@
 # TODO: This isn't actually thread-safe
 import asyncio
 
-from . import index as _index
+from aiok8s.cache import index as _index
 
 
 def new_thread_safe_store(indexers, indices):

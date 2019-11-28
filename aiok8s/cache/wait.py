@@ -15,7 +15,7 @@
 import asyncio
 import random
 
-from . import time_
+from aiok8s.cache import time_
 
 FOREVER_TEST_TIMEOUT = 30
 

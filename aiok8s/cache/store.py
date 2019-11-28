@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import index, thread_safe_store
+from aiok8s.cache import index, thread_safe_store
 
 
 class StoreKeyError(KeyError):

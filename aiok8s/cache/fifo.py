@@ -14,7 +14,7 @@
 
 import asyncio
 
-from .store import StoreKeyError
+from aiok8s.cache import store
 
 
 class FIFOClosedError(Exception):
@@ -45,7 +45,7 @@ class FIFO:
         try:
             id_ = self._key_func(obj)
         except Exception as e:
-            raise StoreKeyError(obj) from e
+            raise store.StoreKeyError(obj) from e
         async with self._lock:
             self._populated = True
             if id_ not in self._items:
@@ -60,7 +60,7 @@ class FIFO:
         try:
             id_ = self._key_func(obj)
         except Exception as e:
-            raise StoreKeyError(obj) from e
+            raise store.StoreKeyError(obj) from e
         async with self._lock:
             self._populated = True
             del self._items[id_]
@@ -75,7 +75,7 @@ class FIFO:
         try:
             key = self._key_func(obj)
         except Exception as e:
-            raise StoreKeyError(obj) from e
+            raise store.StoreKeyError(obj) from e
         return self.get_by_key(key)
 
     def get_by_key(self, key):
@@ -87,7 +87,7 @@ class FIFO:
             try:
                 key = self._key_func(item)
             except Exception as e:
-                raise StoreKeyError(item) from e
+                raise store.StoreKeyError(item) from e
             items[key] = item
         async with self._lock:
             if not self._populated:
@@ -135,7 +135,7 @@ class FIFO:
         try:
             id_ = self._key_func(obj)
         except Exception as e:
-            raise StoreKeyError(obj) from e
+            raise store.StoreKeyError(obj) from e
         async with self._lock:
             self._add_if_not_present(id_, obj)
 

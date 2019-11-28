@@ -15,7 +15,7 @@
 import asyncio
 import time
 
-from . import time_
+from aiok8s.cache import time_
 
 
 class RealClock:

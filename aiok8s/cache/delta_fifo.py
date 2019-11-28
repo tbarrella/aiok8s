@@ -17,7 +17,7 @@ import enum
 import logging
 from typing import Any, NamedTuple
 
-from . import fifo, store
+from aiok8s.cache import fifo, store
 
 logger = logging.getLogger(__name__)
 
