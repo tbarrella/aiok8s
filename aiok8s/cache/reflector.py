@@ -144,8 +144,9 @@ class Reflector:
         event_queue = asyncio.Queue()
 
         async def get_events():
-            async for event in w:
-                await event_queue.put(event)
+            async with w:
+                async for event in w:
+                    await event_queue.put(event)
             await event_queue.put(None)
 
         get_events_task = asyncio.ensure_future(get_events())
@@ -206,7 +207,6 @@ class Reflector:
                 event_count,
             )
         finally:
-            await w.stop()
             tasks = [event_task, get_events_task, error_task, stop_task]
             for task in tasks:
                 task.cancel()

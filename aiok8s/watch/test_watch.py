@@ -49,8 +49,9 @@ class TestWatch(unittest.TestCase):
             await f.error(TestType("error: blah"))
             await f.stop()
 
-        asyncio.ensure_future(sender())
-        await consumer(f)
+        async with f:
+            asyncio.ensure_future(sender())
+            await consumer(f)
 
 
 class TestType(str):

@@ -1,8 +1,7 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 
-from kubernetes import client, config, watch
-from kubernetes.client.models import V1Pod
+from kubernetes_asyncio import client, config, watch
+from kubernetes_asyncio.client.models import V1Pod
 
 from aiok8s.cache import shared_informer
 
@@ -64,68 +63,22 @@ class ListWatch:
         self._namespace = namespace
 
     async def list(self, options):
-        def list_pods():
-            config.load_kube_config()
-            v1 = client.CoreV1Api()
-            print("listing")
-            return v1.list_namespaced_pod(self._namespace, **options)
-
-        loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor() as pool:
-            pod_list = await loop.run_in_executor(pool, list_pods)
-            print("got pods", *(pod.metadata.name for pod in pod_list.items))
-            return pod_list
+        print("listing")
+        await config.load_kube_config()
+        v1 = client.CoreV1Api()
+        return await v1.list_namespaced_pod(self._namespace, **options)
 
     async def watch(self, options):
         print("creating watcher")
-        return Watch(self._namespace, options)
+        await config.load_kube_config()
+        v1 = client.CoreV1Api()
+        return watch.Watch().stream(v1.list_namespaced_pod, self._namespace, **options)
 
 
 def new_pod_informer(namespace, resync_period):
     return shared_informer.new_shared_informer(
         ListWatch(namespace), V1Pod(), resync_period
     )
-
-
-class Watch:
-    def __init__(self, namespace, options):
-        config.load_kube_config()
-        v1 = client.CoreV1Api()
-        self._stopped = asyncio.Event()
-        self._task = asyncio.ensure_future(self._stopped.wait())
-        self._w = watch.Watch()
-        print("watching with options", options)
-        self._stream = self._w.stream(v1.list_namespaced_pod, namespace, **options)
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        event = asyncio.ensure_future(self._get_next())
-        while True:
-            done, _ = await asyncio.wait(
-                [event, self._task], return_when=asyncio.FIRST_COMPLETED
-            )
-            if event in done:
-                return await event
-            if self._stopped.is_set():
-                event.cancel()
-                raise StopAsyncIteration
-
-    async def stop(self):
-        self._w.stop()
-        self._stopped.set()
-
-    async def _get_next(self):
-        loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor() as pool:
-            return await loop.run_in_executor(pool, self._get_event)
-
-    def _get_event(self):
-        try:
-            return next(self._stream)
-        except StopIteration:
-            raise StopAsyncIteration
 
 
 if __name__ == "__main__":

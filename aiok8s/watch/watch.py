@@ -49,6 +49,12 @@ class FakeWatcher:
                 event.cancel()
                 raise StopAsyncIteration
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.stop()
+
     async def stop(self):
         logger.debug("Stopping fake watcher.")
         self._stopped.set()

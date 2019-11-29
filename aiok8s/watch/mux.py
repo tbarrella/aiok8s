@@ -173,6 +173,12 @@ class _BroadcasterWatcher:
             if self._stopped.is_set():
                 raise StopAsyncIteration
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.stop()
+
     async def stop(self):
         if not self._stopped.is_set():
             self._stopped.set()
