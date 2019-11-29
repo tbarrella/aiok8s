@@ -99,7 +99,7 @@ class Reflector:
                     w = await self._lister_watcher.watch(options)
                 except Exception as e:
                     # TODO: Handle ECONNREFUSED
-                    logger.error("Failed to watch %s: %s", self._expected_type_name, e)
+                    logger.error("Failed to watch %s: %r", self._expected_type_name, e)
                     return
                 try:
                     await self._watch_handler(
@@ -107,7 +107,7 @@ class Reflector:
                     )
                 except Exception as e:
                     logger.warning(
-                        "watch of %s ended with: %s", self._expected_type_name, e
+                        "watch of %s ended with: %r", self._expected_type_name, e
                     )
                     return
         finally:
