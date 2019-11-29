@@ -169,31 +169,31 @@ class Reflector:
                 event = await event_task
                 if event is None:
                     break
-                if event.type == watch.EventType.ERROR:
+                if event["type"] == watch.EventType.ERROR:
                     raise Exception
                 if self._expected_type is not None and not isinstance(
-                    event.object, self._expected_type
+                    event["object"], self._expected_type
                 ):
                     continue
                 # TODO: Handle GVK
                 try:
-                    metadata = meta.accessor(event.object)
+                    metadata = meta.accessor(event["object"])
                 except AttributeError:
                     continue
                 new_resource_version = metadata.resource_version
-                if event.type == watch.EventType.ADDED:
+                if event["type"] == watch.EventType.ADDED:
                     try:
-                        await self._store.add(event.object)
+                        await self._store.add(event["object"])
                     except Exception:
                         pass
-                elif event.type == watch.EventType.MODIFIED:
+                elif event["type"] == watch.EventType.MODIFIED:
                     try:
-                        await self._store.update(event.object)
+                        await self._store.update(event["object"])
                     except Exception:
                         pass
-                elif event.type == watch.EventType.DELETED:
+                elif event["type"] == watch.EventType.DELETED:
                     try:
-                        await self._store.delete(event.object)
+                        await self._store.delete(event["object"])
                     except Exception:
                         pass
                 options["resource_version"] = new_resource_version

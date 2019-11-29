@@ -55,7 +55,7 @@ class TestFakeControllerSource(unittest.TestCase):
             i = 0
             async for got in w:
                 rv = rvs[i]
-                got_rv = got.object.metadata.resource_version
+                got_rv = got["object"].metadata.resource_version
                 self.assertEqual(got_rv, rv)
                 i += 1
             self.assertEqual(i, len(rvs))

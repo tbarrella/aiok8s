@@ -31,36 +31,36 @@ class FakeControllerSource:
         self._changes = []
 
     async def add(self, obj):
-        await self.change(watch.Event(watch.EventType.ADDED, obj), 1)
+        await self.change({"type": watch.EventType.ADDED, "object": obj}, 1)
 
     async def modify(self, obj):
-        await self.change(watch.Event(watch.EventType.MODIFIED, obj), 1)
+        await self.change({"type": watch.EventType.MODIFIED, "object": obj}, 1)
 
     async def delete(self, last_value):
-        await self.change(watch.Event(watch.EventType.DELETED, last_value), 1)
+        await self.change({"type": watch.EventType.DELETED, "object": last_value}, 1)
 
     async def add_drop_watch(self, obj):
-        await self.change(watch.Event(watch.EventType.ADDED, obj), 0)
+        await self.change({"type": watch.EventType.ADDED, "object": obj}, 0)
 
     async def modify_drop_watch(self, obj):
-        await self.change(watch.Event(watch.EventType.MODIFIED, obj), 0)
+        await self.change({"type": watch.EventType.MODIFIED, "object": obj}, 0)
 
     async def delete_drop_watch(self, last_value):
-        await self.change(watch.Event(watch.EventType.DELETED, last_value), 0)
+        await self.change({"type": watch.EventType.DELETED, "object": last_value}, 0)
 
     async def change(self, e, watch_probability):
         async with self._lock:
-            accessor = meta.accessor(e.object)
+            accessor = meta.accessor(e["object"])
             resource_version = len(self._changes) + 1
             accessor.resource_version = str(resource_version)
             self._changes.append(e)
             key = self._key(accessor)
-            if e.type in (watch.EventType.ADDED, watch.EventType.MODIFIED):
-                self.items[key] = e.object
-            elif e.type == watch.EventType.DELETED:
+            if e["type"] in (watch.EventType.ADDED, watch.EventType.MODIFIED):
+                self.items[key] = e["object"]
+            elif e["type"] == watch.EventType.DELETED:
                 del self.items[key]
             if random.random() < watch_probability:
-                await self.broadcaster.action(e.type, e.object)
+                await self.broadcaster.action(e["type"], e["object"])
 
     async def list(self, **options):
         async with self._lock:
@@ -77,7 +77,7 @@ class FakeControllerSource:
             rc = int(options["resource_version"])
             if rc < len(self._changes):
                 changes = [
-                    watch.Event(c.type, copy.deepcopy(c.object))
+                    {"type": c["type"], "object": copy.deepcopy(c["object"])}
                     for c in self._changes[rc:]
                 ]
                 return await self.broadcaster.watch_with_prefix(changes)

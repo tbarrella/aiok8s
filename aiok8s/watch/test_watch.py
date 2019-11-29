@@ -36,8 +36,8 @@ class TestWatch(unittest.TestCase):
             i = 0
             async for got in w:
                 expect = table[i]
-                self.assertEqual(got.type, expect["t"])
-                self.assertEqual(got.object, expect["s"])
+                self.assertEqual(got["type"], expect["t"])
+                self.assertEqual(got["object"], expect["s"])
                 i += 1
             self.assertEqual(i, len(table))
 

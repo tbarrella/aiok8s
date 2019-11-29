@@ -15,8 +15,6 @@
 import asyncio
 import enum
 
-from aiok8s.watch import watch
-
 
 class FullChannelBehavior(enum.Enum):
     WAIT_IF_CHANNEL_FULL = 1
@@ -73,7 +71,7 @@ class Broadcaster:
         return w
 
     async def action(self, action, obj):
-        await self._incoming.put(watch.Event(action, obj))
+        await self._incoming.put({"type": action, "object": obj})
 
     async def shutdown(self):
         await self._incoming.put(None)
@@ -89,7 +87,10 @@ class Broadcaster:
                 event.set()
 
         await self._incoming.put(
-            watch.Event(_INTERNAL_RUN_FUNCTION_MARKER, _FunctionFakeRuntimeObject(func))
+            {
+                "type": _INTERNAL_RUN_FUNCTION_MARKER,
+                "object": _FunctionFakeRuntimeObject(func),
+            }
         )
         await event.wait()
 
@@ -110,8 +111,8 @@ class Broadcaster:
             event = await self._incoming.get()
             if event is None:
                 break
-            if event.type == _INTERNAL_RUN_FUNCTION_MARKER:
-                await event.object()
+            if event["type"] == _INTERNAL_RUN_FUNCTION_MARKER:
+                await event["object"]()
                 continue
             await self._distribute(event)
         await self._close_all()
