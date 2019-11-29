@@ -1,4 +1,5 @@
 import asyncio
+import signal
 
 from kubernetes_asyncio import client, config, watch
 from kubernetes_asyncio.client.models import V1Pod
@@ -51,11 +52,12 @@ async def _run():
     informer = new_pod_informer("kube-system", 60)
     await informer.add_event_handler_with_resync_period(Handler(), 60)
     stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for signal_ in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(signal_, stop.set)
+
     print("running")
-    try:
-        await informer.run(stop)
-    finally:
-        stop.set()
+    await informer.run(stop)
 
 
 class ListWatch:
