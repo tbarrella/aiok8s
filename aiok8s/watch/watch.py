@@ -46,6 +46,7 @@ class FakeWatcher:
                 self._result.task_done()
                 return await event
             if self._stopped.is_set():
+                event.cancel()
                 raise StopAsyncIteration
 
     async def stop(self):

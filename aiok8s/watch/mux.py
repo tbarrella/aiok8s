@@ -130,13 +130,15 @@ class Broadcaster:
                         pass
                 return
             for w in self._watchers.values():
-                await asyncio.wait(
+                _, pending = await asyncio.wait(
                     [
                         asyncio.ensure_future(w._put(event)),
                         asyncio.ensure_future(w._stopped.wait()),
                     ],
                     return_when=asyncio.FIRST_COMPLETED,
                 )
+                for task in pending:
+                    task.cancel()
 
 
 class _FunctionFakeRuntimeObject:

@@ -319,10 +319,10 @@ class _ProcessListener:
             self._add_queue.task_done()
             return notification_to_add
 
+        next_queue = None
+        notification = None
+        stop_task = asyncio.ensure_future(self._stop_add.wait())
         try:
-            next_queue = None
-            notification = None
-            stop_task = asyncio.ensure_future(self._stop_add.wait())
             while True:
                 get_task = asyncio.ensure_future(get())
                 put_task = None
@@ -331,8 +331,12 @@ class _ProcessListener:
                     put_task = asyncio.ensure_future(next_queue.put(notification))
                     tasks.append(put_task)
 
-                done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                done, pending = await asyncio.wait(
+                    tasks, return_when=asyncio.FIRST_COMPLETED
+                )
                 if self._stop_add.is_set():
+                    for task in pending:
+                        task.cancel()
                     return
                 if get_task in done:
                     notification_to_add = await get_task
@@ -350,8 +354,11 @@ class _ProcessListener:
                     else:
                         notification = None
                         next_queue = None
+                elif put_task:
+                    put_task.cancel()
         finally:
             self._stop_next.set()
+            stop_task.cancel()
 
     async def _run(self):
         stop_event = asyncio.Event()
@@ -369,6 +376,7 @@ class _ProcessListener:
                     [get_task, stop_next_task], return_when=asyncio.FIRST_COMPLETED
                 )
                 if self._stop_next.is_set():
+                    get_task.cancel()
                     return True
                 notification = await get_task
                 if isinstance(notification, _UpdateNotification):
@@ -390,6 +398,7 @@ class _ProcessListener:
             stop_event.set()
 
         await wait.until(f, 60, stop_event)
+        stop_next_task.cancel()
 
     def _should_resync(self, now):
         return bool(self._resync_period) and now >= self._next_resync
