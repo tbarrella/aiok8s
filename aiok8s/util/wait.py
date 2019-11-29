@@ -25,7 +25,7 @@ async def until(f, period, stop_event):
 
 
 async def jitter_until(f, period, jitter_factor, sliding, stop_event):
-    stop = asyncio.ensure_future(stop_event.wait())
+    stop_task = asyncio.ensure_future(stop_event.wait())
     while not stop_event.is_set():
         if jitter_factor > 0:
             jittered_period = jitter(period, jitter_factor)
@@ -38,10 +38,9 @@ async def jitter_until(f, period, jitter_factor, sliding, stop_event):
         if sliding:
             t = _time.Timer(jittered_period)
 
-        await asyncio.wait(
-            [asyncio.ensure_future(t.c.get()), stop],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
+        timer_task = asyncio.ensure_future(t.c.get())
+        await asyncio.wait([timer_task, stop_task], return_when=asyncio.FIRST_COMPLETED)
+        timer_task.cancel()
 
 
 def jitter(duration, max_factor):
@@ -111,8 +110,8 @@ async def poll_immediate_until(interval, condition, stop_event):
     _, pending = await asyncio.wait(
         [poll_task, stop_task], return_when=asyncio.FIRST_COMPLETED
     )
-    if poll_task in pending:
-        poll_task.cancel()
+    for task in pending:
+        task.cancel()
 
 
 async def _poll_internal(interval, condition):

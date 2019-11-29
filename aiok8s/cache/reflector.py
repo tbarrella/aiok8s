@@ -50,12 +50,10 @@ class Reflector:
         stop_task = asyncio.ensure_future(stop_event.wait())
         options = {"resource_version": "0"}
 
-        async def list_coro():
-            return await self._lister_watcher.list(options)
-
-        list_task = asyncio.ensure_future(list_coro())
+        list_task = asyncio.ensure_future(self._lister_watcher.list(options))
         await asyncio.wait([list_task, stop_task], return_when=asyncio.FIRST_COMPLETED)
         if stop_event.is_set():
+            list_task.cancel()
             return
         list_ = await list_task
         list_meta = meta.list_accessor(list_)
@@ -65,24 +63,18 @@ class Reflector:
         self._set_last_sync_resource_version(resource_version)
 
         resync_error_queue = asyncio.Queue(maxsize=1)
-        cancel_event = asyncio.Event()
-        cancel_task = asyncio.ensure_future(cancel_event.wait())
 
         async def resync():
             resync_queue, cleanup = self._resync_queue()
             try:
                 while True:
+                    resync_queue_task = asyncio.ensure_future(resync_queue.get())
                     await asyncio.wait(
-                        [
-                            asyncio.ensure_future(resync_queue.get()),
-                            stop_task,
-                            cancel_task,
-                        ],
+                        [resync_queue_task, stop_task],
                         return_when=asyncio.FIRST_COMPLETED,
                     )
                     if stop_event.is_set():
-                        return
-                    if cancel_event.is_set():
+                        resync_queue_task.cancel()
                         return
                     if self.should_resync is None or self.should_resync():
                         logger.debug("forcing resync")
@@ -96,7 +88,7 @@ class Reflector:
             finally:
                 cleanup()
 
-        asyncio.ensure_future(resync())
+        resync_task = asyncio.ensure_future(resync())
         options = {"resource_version": resource_version}
         try:
             while not stop_event.is_set():
@@ -119,7 +111,10 @@ class Reflector:
                     )
                     return
         finally:
-            cancel_event.set()
+            tasks = [resync_task, stop_task]
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     def last_sync_resource_version(self):
         return self._last_sync_resource_version
@@ -153,7 +148,7 @@ class Reflector:
                 await event_queue.put(event)
             await event_queue.put(None)
 
-        asyncio.ensure_future(get_events())
+        get_events_task = asyncio.ensure_future(get_events())
         error_task = asyncio.ensure_future(error_queue.get())
         try:
             while True:
@@ -212,6 +207,10 @@ class Reflector:
             )
         finally:
             await w.stop()
+            tasks = [event_task, get_events_task, error_task, stop_task]
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     def _set_last_sync_resource_version(self, v):
         self._last_sync_resource_version = v
