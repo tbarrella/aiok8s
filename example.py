@@ -63,7 +63,7 @@ class ListWatch:
     def __init__(self, namespace):
         self._namespace = namespace
 
-    async def list(self, **options):
+    async def list(self, options):
         def list_pods():
             config.load_kube_config()
             v1 = client.CoreV1Api()
@@ -76,9 +76,9 @@ class ListWatch:
             print("got pods", *(pod.metadata.name for pod in pod_list.items))
             return pod_list
 
-    async def watch(self, **options):
+    async def watch(self, options):
         print("creating watcher")
-        return Watch(self._namespace, **options)
+        return Watch(self._namespace, options)
 
 
 def new_pod_informer(namespace, resync_period):
@@ -88,7 +88,7 @@ def new_pod_informer(namespace, resync_period):
 
 
 class Watch:
-    def __init__(self, namespace, **options):
+    def __init__(self, namespace, options):
         config.load_kube_config()
         v1 = client.CoreV1Api()
         self._stopped = asyncio.Event()

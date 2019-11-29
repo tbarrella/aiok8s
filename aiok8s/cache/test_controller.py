@@ -126,9 +126,9 @@ class TestController(unittest.TestCase):
 
         watch_event = asyncio.Event()
 
-        async def watch_func(**options):
+        async def watch_func(options):
             try:
-                return await source.watch(**options)
+                return await source.watch(options)
             finally:
                 watch_event.set()
 
@@ -164,11 +164,11 @@ class TestLW:
         self._list_func = list_func
         self._watch_func = watch_func
 
-    async def list(self, **options):
-        return await self._list_func(**options)
+    async def list(self, options):
+        return await self._list_func(options)
 
-    async def watch(self, **options):
-        return await self._watch_func(**options)
+    async def watch(self, options):
+        return await self._watch_func(options)
 
 
 if __name__ == "__main__":

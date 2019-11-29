@@ -40,10 +40,10 @@ class TestReflector(unittest.TestCase):
         pod = V1Pod(metadata=V1ObjectMeta(name="bar"))
         fw = watch.new_fake()
 
-        def list_func(**options):
+        def list_func(options):
             return V1PodList(metadata=V1ListMeta(resource_version="1"), items=[])
 
-        lister_watcher = TestLW(list_func, lambda **_: fw)
+        lister_watcher = TestLW(list_func, lambda _: fw)
         r = Reflector(
             lister_watcher, V1Pod(), store.new_store(store.meta_namespace_key_func), 0
         )
@@ -62,10 +62,10 @@ class TestReflector(unittest.TestCase):
         s = store.new_store(store.meta_namespace_key_func)
         fw = watch.new_fake()
 
-        def list_func(**options):
+        def list_func(options):
             return V1PodList(metadata=V1ListMeta(resource_version="1"), items=[])
 
-        lister_watcher = TestLW(list_func, lambda **_: fw)
+        lister_watcher = TestLW(list_func, lambda _: fw)
         r = Reflector(lister_watcher, V1Pod(), s, 0)
         asyncio.ensure_future(r.run(stop_event))
         await fw.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
@@ -153,10 +153,10 @@ class TestReflector(unittest.TestCase):
         created_fakes = asyncio.Queue()
         expected_rvs = ["1", "3"]
 
-        def list_func(**options):
+        def list_func(options):
             return V1PodList(metadata=V1ListMeta(resource_version="1"), items=[])
 
-        def watch_func(**options):
+        def watch_func(options):
             nonlocal expected_rvs
             rv = options["resource_version"]
             fw = watch.new_fake()
@@ -248,12 +248,12 @@ class TestReflector(unittest.TestCase):
             watch_ret = item.get("events", [])
             watch_err = item.get("watch_err")
 
-            def list_func(**options):
+            def list_func(options):
                 if "list_err" in item:
                     raise item["list_err"]
                 return item["list"]
 
-            def watch_func(**options):
+            def watch_func(options):
                 nonlocal watch_err
                 if watch_err:
                     raise watch_err
@@ -289,10 +289,10 @@ class TestReflector(unittest.TestCase):
 
         s = fake_custom_store.FakeCustomStore(resync_func=resync_func)
 
-        def list_func(**options):
+        def list_func(options):
             return V1PodList(metadata=V1ListMeta(resource_version="0"), items=[])
 
-        def watch_func(**options):
+        def watch_func(options):
             fw = watch.new_fake()
             return fw
 
@@ -323,11 +323,11 @@ class TestLW:
         self._list_func = list_func
         self._watch_func = watch_func
 
-    async def list(self, **options):
-        return self._list_func(**options)
+    async def list(self, options):
+        return self._list_func(options)
 
-    async def watch(self, **options):
-        return self._watch_func(**options)
+    async def watch(self, options):
+        return self._watch_func(options)
 
 
 async def pop(queue_):

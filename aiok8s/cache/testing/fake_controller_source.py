@@ -62,7 +62,7 @@ class FakeControllerSource:
             if random.random() < watch_probability:
                 await self.broadcaster.action(e["type"], e["object"])
 
-    async def list(self, **options):
+    async def list(self, options):
         async with self._lock:
             list_ = self._get_list_items_locked()
             list_obj = _List()
@@ -72,7 +72,7 @@ class FakeControllerSource:
             list_accessor.resource_version = str(resource_version)
             return list_obj
 
-    async def watch(self, **options):
+    async def watch(self, options):
         async with self._lock:
             rc = int(options["resource_version"])
             if rc < len(self._changes):

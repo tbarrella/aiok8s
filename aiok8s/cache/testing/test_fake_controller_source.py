@@ -36,16 +36,16 @@ class TestFakeControllerSource(unittest.TestCase):
         await source.modify(pod("foo"))
         await source.modify(pod("foo"))
 
-        w = await source.watch(resource_version="1")
+        w = await source.watch({"resource_version": "1"})
         asyncio.ensure_future(self.consume(w, ["2", "3"], queue))
 
-        list_ = await source.list()
+        list_ = await source.list({})
         self.assertEqual(list_.metadata.resource_version, "3")
 
-        w2 = await source.watch(resource_version="2")
+        w2 = await source.watch({"resource_version": "2"})
         asyncio.ensure_future(self.consume(w2, ["3"], queue))
 
-        w3 = await source.watch(resource_version="3")
+        w3 = await source.watch({"resource_version": "3"})
         asyncio.ensure_future(self.consume(w3, [], queue))
         await source.shutdown()
         await queue.join()

@@ -51,7 +51,7 @@ class Reflector:
         options = {"resource_version": "0"}
 
         async def list_coro():
-            return await self._lister_watcher.list(**options)
+            return await self._lister_watcher.list(options)
 
         list_task = asyncio.ensure_future(list_coro())
         await asyncio.wait([list_task, stop_task], return_when=asyncio.FIRST_COMPLETED)
@@ -97,14 +97,14 @@ class Reflector:
                 cleanup()
 
         asyncio.ensure_future(resync())
-        options["resource_version"] = resource_version
+        options = {"resource_version": resource_version}
         try:
             while not stop_event.is_set():
                 timeout_seconds = int(_MIN_WATCH_TIMEOUT * (random.random() + 1))
                 # TODO: AllowWatchBookmarks
                 options["timeout_seconds"] = timeout_seconds
                 try:
-                    w = await self._lister_watcher.watch(**options)
+                    w = await self._lister_watcher.watch(options)
                 except Exception as e:
                     # TODO: Handle ECONNREFUSED
                     logger.error("Failed to watch %s: %s", self._expected_type_name, e)
