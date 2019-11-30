@@ -137,7 +137,7 @@ def _new_informer(lw, obj_type, resync_period, h, client_state):
                 await client_state.delete(d.object)
                 await h.on_delete(d.object)
             else:
-                assert False, f"unexpected type {d.type!r}"
+                raise AssertionError
 
     cfg = Config(
         queue=fifo,

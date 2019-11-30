@@ -199,7 +199,7 @@ class _SharedIndexInformer:
                         _DeleteNotification(old_obj=d.object), False
                     )
                 else:
-                    assert False, f"unexpected type {d.type!r}"
+                    raise AssertionError
 
 
 class _UpdateNotification(NamedTuple):
