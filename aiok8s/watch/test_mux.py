@@ -36,24 +36,26 @@ class TestBrodcaster(unittest.TestCase):
         ]
 
         m = Broadcaster(0, FullChannelBehavior.WAIT_IF_CHANNEL_FULL)
-
         test_watchers = 2
-        queue = asyncio.Queue(maxsize=test_watchers)
-        for i in range(test_watchers):
-            await queue.put(None)
 
-            async def coro(watcher, w):
-                table_line = 0
-                async for event in w:
-                    self.assertEqual(event, table[table_line])
-                    table_line += 1
-                queue.task_done()
+        async def coro(watcher, w):
+            table_line = 0
+            async for event in w:
+                self.assertEqual(
+                    event,
+                    table[table_line],
+                    msg="Watcher {}, line {}".format(watcher, table_line),
+                )
+                table_line += 1
 
+        tasks = [
             asyncio.ensure_future(coro(i, await m.watch()))
+            for i in range(test_watchers)
+        ]
         for item in table:
             await m.action(item["type"], item["object"])
         await m.shutdown()
-        await queue.join()
+        await asyncio.gather(*tasks)
 
     @async_test
     async def test_watcher_close(self):
@@ -112,24 +114,17 @@ class TestBrodcaster(unittest.TestCase):
         await m.action(event2["type"], event2["object"])
         await m.shutdown()
 
-        queue = asyncio.Queue(maxsize=len(watches))
-        for i, w in enumerate(watches):
-            await queue.put(None)
+        async def coro(watcher, w):
+            e1 = await w.__anext__()
+            self.assertEqual(e1, event1, msg="Watcher {}".format(watcher))
+            async for e2 in w:
+                self.fail(
+                    "Watcher {} received second event {!r} "
+                    "even though it shouldn't have.".format(watcher, e2)
+                )
 
-            async def coro(watcher, w):
-                try:
-                    e1 = await w.__anext__()
-                    self.assertEqual(e1, event1)
-                    async for e2 in w:
-                        self.fail(
-                            "Watcher {} received second event {!r} "
-                            "even though it shouldn't have.".format(watcher, e2)
-                        )
-                finally:
-                    queue.task_done()
-
-            asyncio.ensure_future(coro(i, w))
-        await queue.join()
+        tasks = [asyncio.ensure_future(coro(i, w)) for i, w in enumerate(watches)]
+        await asyncio.gather(*tasks)
 
 
 class MyType(NamedTuple):
