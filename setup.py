@@ -5,13 +5,13 @@ with open("README.md") as f:
 
 setuptools.setup(
     name="aiok8s",
-    version="0.0.0",
+    version="0.0.1",
     author="Taylor Barrella",
     author_email="tbarrella@gmail.com",
     description="asyncio client tools for Kubernetes",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/tbarrella/kubernetes-cache",
+    url="https://github.com/tbarrella/aiok8s",
     packages=setuptools.find_packages(),
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
