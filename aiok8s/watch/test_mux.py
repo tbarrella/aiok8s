@@ -63,9 +63,9 @@ class TestBrodcaster(unittest.TestCase):
         await w.stop()
         await m.shutdown()
         async for _ in w:
-            assert False
+            self.fail("Stop didn't work?")
         async for _ in w2:
-            assert False
+            self.fail("Shutdown didn't work?")
         await w.stop()
         await w2.stop()
 
@@ -118,14 +118,13 @@ class TestBrodcaster(unittest.TestCase):
 
             async def coro(watcher, w):
                 try:
-                    async for e in w:
-                        e1 = e
-                        break
-                    else:
-                        assert False
+                    e1 = await w.__anext__()
                     self.assertEqual(e1, event1)
-                    async for e in w:
-                        assert False
+                    async for e2 in w:
+                        self.fail(
+                            "Watcher {} received second event {!r} "
+                            "even though it shouldn't have.".format(watcher, e2)
+                        )
                 finally:
                     queue.task_done()
 

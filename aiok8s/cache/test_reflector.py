@@ -52,7 +52,7 @@ class TestReflector(unittest.TestCase):
 
         async def aw():
             async for _ in fw:
-                assert False
+                self.fail("Watch left open after cancellation")
 
         await asyncio.wait_for(aw(), wait.FOREVER_TEST_TIMEOUT)
 
@@ -73,7 +73,7 @@ class TestReflector(unittest.TestCase):
 
         async def aw():
             async for _ in fw:
-                assert False
+                self.fail("Watch left open after stopping the watch")
 
         await asyncio.wait_for(aw(), wait.FOREVER_TEST_TIMEOUT)
 

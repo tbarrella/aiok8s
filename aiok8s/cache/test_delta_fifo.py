@@ -45,7 +45,7 @@ class TestDeltaFIFO(unittest.TestCase):
         last_float = 0.0
         asyncio.ensure_future(add_ints())
         asyncio.ensure_future(add_floats())
-        for i in range(amount * 2):
+        for _ in range(amount * 2):
             obj = (await test_pop(f)).val
             if isinstance(obj, int):
                 self.assertGreater(obj, last_int)
@@ -54,7 +54,7 @@ class TestDeltaFIFO(unittest.TestCase):
                 self.assertGreater(obj, last_float)
                 last_float = obj
             else:
-                assert False, f"unexpected type {obj!r}"
+                self.fail("unexpected type {!r}".format(obj))
 
     @async_test
     async def test_requeue_on_pop(self):
@@ -75,12 +75,9 @@ class TestDeltaFIFO(unittest.TestCase):
             self.assertEqual(obj[0].object.name, "foo")
             raise fifo.RequeueError from TestError
 
-        try:
+        with self.assertRaises(fifo.ProcessError) as cm:
             await f.pop(process)
-        except fifo.ProcessError as e:
-            self.assertIsInstance(e.__cause__, TestError)
-        else:
-            assert False, "expected error"
+        self.assertIsInstance(cm.exception.__cause__, TestError)
         self.assertIsNotNone(f.get_by_key("foo"))
 
         async def process(obj):
