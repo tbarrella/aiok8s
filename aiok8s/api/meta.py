@@ -44,6 +44,8 @@ def accessor(obj):
 
 
 def type_accessor(obj):
+    if isinstance(obj, dict):
+        return _UnstructuredObjectAccessor(obj)
     return _ObjectAccessor(obj)
 
 
@@ -150,16 +152,26 @@ class _ObjectAccessor:
 
     @property
     def api_version(self):
-        return self._obj["apiVersion"]
+        return self._obj.api_version
 
     @property
     def kind(self):
-        return self._obj["kind"]
+        return self._obj.kind
 
     # Motivated by apimachinery/pkg/apis/meta/v1/meta.go GroupVersionKind()
     def get_group_version_kind(self):
         group, version = self.api_version.split("/")
         return schema.GroupVersionKind(group, version, self.kind)
+
+
+class _UnstructuredObjectAccessor(_ObjectAccessor):
+    @property
+    def api_version(self):
+        return self._obj["apiVersion"]
+
+    @property
+    def kind(self):
+        return self._obj["kind"]
 
     def set_group_version_kind(self, group_version_kind):
         api_version = f"{group_version_kind.group}/{group_version_kind.version}"
