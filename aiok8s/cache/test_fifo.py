@@ -47,7 +47,7 @@ class TestFIFO(unittest.TestCase):
                 self.assertGreater(obj, last_float)
                 last_float = obj
             else:
-                self.fail("unexpected type {!r}".format(obj))
+                self.fail(f"unexpected type {obj!r}")
 
     @async_test
     async def test_requeue_on_pop(self):

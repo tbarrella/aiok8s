@@ -44,7 +44,7 @@ class TestBrodcaster(unittest.TestCase):
                 self.assertEqual(
                     event,
                     table[table_line],
-                    msg="Watcher {}, line {}".format(watcher, table_line),
+                    msg=f"Watcher {watcher}, line {table_line}",
                 )
                 table_line += 1
 
@@ -116,11 +116,11 @@ class TestBrodcaster(unittest.TestCase):
 
         async def coro(watcher, w):
             e1 = await w.__anext__()
-            self.assertEqual(e1, event1, msg="Watcher {}".format(watcher))
+            self.assertEqual(e1, event1, msg=f"Watcher {watcher}")
             async for e2 in w:
                 self.fail(
-                    "Watcher {} received second event {!r} "
-                    "even though it shouldn't have.".format(watcher, e2)
+                    f"Watcher {watcher} received second event {e2!r} "
+                    f"even though it shouldn't have."
                 )
 
         tasks = [asyncio.ensure_future(coro(i, w)) for i, w in enumerate(watches)]
