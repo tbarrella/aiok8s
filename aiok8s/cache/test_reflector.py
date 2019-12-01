@@ -23,6 +23,7 @@ from kubernetes.client.models import (
     V1Service,
 )
 
+from aiok8s.api import meta
 from aiok8s.cache import fake_custom_store, fifo, store
 from aiok8s.cache.reflector import (
     _DEFAULT_EXPECTED_TYPE_NAME,
@@ -30,6 +31,7 @@ from aiok8s.cache.reflector import (
     _StopRequestedError,
 )
 from aiok8s.cache.testing.util import async_test
+from aiok8s.runtime import schema
 from aiok8s.util import wait
 from aiok8s.watch import watch
 
@@ -303,6 +305,9 @@ class TestReflector(unittest.TestCase):
         self.assertEqual(iteration, 2)
 
     def test_set_expected_type(self):
+        obj = {}
+        gvk = schema.GroupVersionKind(group="mygroup", version="v1", kind="MyKind")
+        meta.type_accessor(obj).set_group_version_kind(gvk)
         test_cases = {
             "None type": {"expected_type_name": _DEFAULT_EXPECTED_TYPE_NAME},
             "Normal type": {
@@ -310,12 +315,19 @@ class TestReflector(unittest.TestCase):
                 "expected_type_name": "V1Pod",
                 "expected_type": V1Pod,
             },
+            "Unstructured type with GVK": {
+                "input_type": obj,
+                "expected_type_name": str(gvk),
+                "expected_type": dict,
+                "expected_gvk": gvk,
+            },
         }
         for tc in test_cases.values():
             r = Reflector.__new__(Reflector)
             r._set_expected_type(tc.get("input_type"))
             self.assertEqual(r._expected_type, tc.get("expected_type"))
             self.assertEqual(r._expected_type_name, tc["expected_type_name"])
+            self.assertEqual(r._expected_gvk, tc.get("expected_gvk"))
 
 
 class TestLW:

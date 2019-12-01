@@ -121,11 +121,18 @@ class Reflector:
 
     def _set_expected_type(self, expected_type):
         self._expected_type = expected_type and type(expected_type)
-        if self._expected_type is None:
-            self._expected_type_name = _DEFAULT_EXPECTED_TYPE_NAME
-            return
-        self._expected_type_name = self._expected_type.__name__
-        # TODO: Handle Unstructured
+
+        if isinstance(expected_type, dict):
+            gvk = meta.type_accessor(expected_type).get_group_version_kind()
+            self._expected_gvk = gvk
+            self._expected_type_name = str(gvk)
+        else:
+            self._expected_gvk = None
+
+            if expected_type is None:
+                self._expected_type_name = _DEFAULT_EXPECTED_TYPE_NAME
+            else:
+                self._expected_type_name = self._expected_type.__name__
 
     def _resync_queue(self):
         if not self._resync_period:
@@ -170,11 +177,25 @@ class Reflector:
                 if self._expected_type is not None and not isinstance(
                     event["object"], self._expected_type
                 ):
+                    logger.error(
+                        "expected type %s, but watch event object had type %s",
+                        self._expected_type,
+                        type(event["object"]),
+                    )
                     continue
-                # TODO: Handle GVK
+                if self._expected_gvk is not None:
+                    gvk = meta.type_accessor(event["object"]).get_group_version_kind()
+                    if self._expected_gvk != gvk:
+                        logger.error(
+                            "expected gvk %s, but watch event object had gvk %s",
+                            self._expected_gvk,
+                            gvk,
+                        )
+                        continue
                 try:
                     metadata = meta.accessor(event["object"])
-                except AttributeError:
+                except Exception:
+                    logger.error("unable to understand watch event %r", event)
                     continue
                 new_resource_version = metadata.resource_version
                 if event["type"] == watch.EventType.ADDED:
