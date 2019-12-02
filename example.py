@@ -1,16 +1,12 @@
-import asyncio
-import signal
-
-from kubernetes_asyncio import client, config, watch
-from kubernetes_asyncio.client.models import V1Pod
-
-from aiok8s.cache import shared_informer
-
-
 """
-kind create cluster, then run
 
-Output...
+Example using a pod informer.
+
+Usage:
+kind create cluster
+python example.py
+
+Output:
 added kube-proxy-c7d7p
 added kindnet-t5bmr
 added coredns-5c98db65d4-qdv6t
@@ -32,6 +28,13 @@ deleted coredns-5c98db65d4-br9qg
 updated coredns-5c98db65d4-7wtns
 """
 
+import asyncio
+import signal
+
+from kubernetes_asyncio import config
+
+from aiok8s.informers import factory
+
 
 def run():
     asyncio.run(_run())
@@ -49,38 +52,26 @@ class Handler:
 
 
 async def _run():
-    informer = new_pod_informer("kube-system", 60)
-    await informer.add_event_handler_with_resync_period(Handler(), 60)
+    informer_factory = await get_informer_factory("kube-system")
+    pod_informer = informer_factory.pods().informer()
+    await pod_informer.add_event_handler(Handler())
+
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for signal_ in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(signal_, stop.set)
 
     print("running")
-    await informer.run(stop)
+    informer_factory.start(stop)
+
+    await stop.wait()
+    # TODO: Related to https://github.com/tbarrella/aiok8s/issues/13
+    await asyncio.sleep(1)
 
 
-class ListWatch:
-    def __init__(self, namespace):
-        self._namespace = namespace
-
-    async def list(self, options):
-        print("listing")
-        await config.load_kube_config()
-        v1 = client.CoreV1Api()
-        return await v1.list_namespaced_pod(self._namespace, **options)
-
-    async def watch(self, options):
-        print("creating watcher")
-        await config.load_kube_config()
-        v1 = client.CoreV1Api()
-        return watch.Watch().stream(v1.list_namespaced_pod, self._namespace, **options)
-
-
-def new_pod_informer(namespace, resync_period):
-    return shared_informer.new_shared_informer(
-        ListWatch(namespace), V1Pod(), resync_period
-    )
+async def get_informer_factory(namespace):
+    await config.load_kube_config()
+    return factory.new(namespace=namespace)
 
 
 if __name__ == "__main__":

@@ -173,7 +173,7 @@ class _UnstructuredObjectAccessor(_ObjectAccessor):
     def kind(self):
         return self._obj["kind"]
 
-    def set_group_version_kind(self, group_version_kind):
-        api_version = f"{group_version_kind.group}/{group_version_kind.version}"
+    def set_group_version_kind(self, gvk):
+        api_version = f"{gvk.group}/{gvk.version}"
         self._obj["apiVersion"] = api_version
-        self._obj["kind"] = group_version_kind.kind
+        self._obj["kind"] = gvk.kind

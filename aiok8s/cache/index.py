@@ -13,6 +13,16 @@
 # limitations under the License.
 
 
+from aiok8s.api import meta
+
+NAMESPACE_INDEX = "namespace"
+
+
+def meta_namespace_index_func(obj):
+    metadata = meta.accessor(obj)
+    return metadata.namespace
+
+
 class Index(dict):
     pass
 
