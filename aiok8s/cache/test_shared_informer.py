@@ -38,18 +38,18 @@ class TestSharedInformer(unittest.TestCase):
         informer._processor._clock = clock_
 
         listener1 = TestListener("listener1", 0, "pod1", "pod2")
-        await informer.add_event_handler_with_resync_period(
-            listener1, listener1._resync_period
+        await informer.add_event_handler(
+            listener1, resync_period=listener1._resync_period
         )
 
         listener2 = TestListener("listener2", 2, "pod1", "pod2")
-        await informer.add_event_handler_with_resync_period(
-            listener2, listener2._resync_period
+        await informer.add_event_handler(
+            listener2, resync_period=listener2._resync_period
         )
 
         listener3 = TestListener("listener3", 3, "pod1", "pod2")
-        await informer.add_event_handler_with_resync_period(
-            listener3, listener3._resync_period
+        await informer.add_event_handler(
+            listener3, resync_period=listener3._resync_period
         )
         listeners = [listener1, listener2, listener3]
 
@@ -92,23 +92,23 @@ class TestSharedInformer(unittest.TestCase):
         informer._processor._clock = clock_
 
         listener1 = TestListener("listener1", 0)
-        await informer.add_event_handler_with_resync_period(
-            listener1, listener1._resync_period
+        await informer.add_event_handler(
+            listener1, resync_period=listener1._resync_period
         )
         self.assertEqual(informer._resync_check_period, 12 * 3600)
         self.assertEqual(informer._processor._listeners[0]._resync_period, 0)
 
         listener2 = TestListener("listener2", 60)
-        await informer.add_event_handler_with_resync_period(
-            listener2, listener2._resync_period
+        await informer.add_event_handler(
+            listener2, resync_period=listener2._resync_period
         )
         self.assertEqual(informer._resync_check_period, 60)
         self.assertEqual(informer._processor._listeners[0]._resync_period, 0)
         self.assertEqual(informer._processor._listeners[1]._resync_period, 60)
 
         listener3 = TestListener("listener3", 55)
-        await informer.add_event_handler_with_resync_period(
-            listener3, listener3._resync_period
+        await informer.add_event_handler(
+            listener3, resync_period=listener3._resync_period
         )
         self.assertEqual(informer._resync_check_period, 55)
         self.assertEqual(informer._processor._listeners[0]._resync_period, 0)
@@ -116,8 +116,8 @@ class TestSharedInformer(unittest.TestCase):
         self.assertEqual(informer._processor._listeners[2]._resync_period, 55)
 
         listener4 = TestListener("listener4", 5)
-        await informer.add_event_handler_with_resync_period(
-            listener4, listener4._resync_period
+        await informer.add_event_handler(
+            listener4, resync_period=listener4._resync_period
         )
         self.assertEqual(informer._resync_check_period, 5)
         self.assertEqual(informer._processor._listeners[0]._resync_period, 0)
@@ -132,9 +132,7 @@ class TestSharedInformer(unittest.TestCase):
         listener = TestListener("race_listener", 0)
 
         asyncio.ensure_future(
-            informer.add_event_handler_with_resync_period(
-                listener, listener._resync_period
-            )
+            informer.add_event_handler(listener, resync_period=listener._resync_period)
         )
         task = asyncio.ensure_future(informer.run())
         task.cancel()

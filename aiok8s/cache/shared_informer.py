@@ -81,12 +81,9 @@ class _SharedIndexInformer:
         self._started_lock = asyncio.Lock()
         self._block_deltas = asyncio.Lock()
 
-    async def add_event_handler(self, handler):
-        await self.add_event_handler_with_resync_period(
-            handler, self._default_event_handler_resync_period
-        )
-
-    async def add_event_handler_with_resync_period(self, handler, resync_period):
+    async def add_event_handler(self, handler, *, resync_period=None):
+        if resync_period is None:
+            resync_period = self._default_event_handler_resync_period
         async with self._started_lock:
             if self._stopped:
                 logger.info(
