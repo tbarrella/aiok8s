@@ -45,10 +45,10 @@ class FakeCustomStore(NamedTuple):
         return self.list_keys_func() if self.list_keys_func else []
 
     def get(self, obj):
-        return self.get_func(obj) if self.get_func else None
+        return self.get_func and self.get_func(obj)
 
     def get_by_key(self, key):
-        return self.get_by_key_func(key) if self.get_by_key_func else None
+        return self.get_by_key_func and self.get_by_key_func(key)
 
     async def replace(self, list_, resource_version):
         if self.replace_func:

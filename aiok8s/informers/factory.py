@@ -19,7 +19,6 @@ from kubernetes_asyncio import client, watch
 from kubernetes_asyncio.client import models
 
 from aiok8s.cache import index, list_watch, shared_informer
-from aiok8s.runtime import schema
 
 
 def new(
@@ -91,7 +90,7 @@ class _Informer:
         self._factory = factory
 
     def informer(self):
-        return self._factory._informer_for(self._gvk, self._new)
+        return self._factory._informer_for(self._object_type, self._new)
 
     def _get_lister(self, client):
         api = self._api_cls(client)
@@ -123,14 +122,13 @@ class _Informer:
         )
         return shared_informer.new_shared_index_informer(
             list_watch.ListWatch(list_func, watch_func),
-            self._object_type(),
+            self._object_type,
             resync_period,
             indexers,
         )
 
 
 class _PodInformer(_Informer):
-    _gvk = schema.GroupVersionKind("", "v1", "Pod")
     _object_type = models.V1Pod
     _api_cls = client.CoreV1Api
     _namespaced_lister = "list_namespaced_pod"

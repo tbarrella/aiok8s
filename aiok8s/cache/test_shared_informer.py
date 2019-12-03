@@ -31,7 +31,7 @@ class TestSharedInformer(unittest.TestCase):
         await source.add(V1Pod(metadata=V1ObjectMeta(name="pod1")))
         await source.add(V1Pod(metadata=V1ObjectMeta(name="pod2")))
 
-        informer = new_shared_informer(source, V1Pod(), 1)
+        informer = new_shared_informer(source, V1Pod, 1)
 
         clock_ = clock.FakeClock(time.time())
         informer._clock = clock_
@@ -88,7 +88,7 @@ class TestSharedInformer(unittest.TestCase):
     @async_test
     async def test_resync_check_period(self):
         source = fake_controller_source.FakeControllerSource()
-        informer = new_shared_informer(source, V1Pod(), 12 * 3600)
+        informer = new_shared_informer(source, V1Pod, 12 * 3600)
 
         clock_ = clock.FakeClock(time.time())
         informer._clock = clock_
@@ -131,7 +131,7 @@ class TestSharedInformer(unittest.TestCase):
     @async_test
     async def test_initialization_race(self):
         source = fake_controller_source.FakeControllerSource()
-        informer = new_shared_informer(source, V1Pod(), 1)
+        informer = new_shared_informer(source, V1Pod, 1)
         listener = TestListener("race_listener", 0)
 
         stop = asyncio.Event()

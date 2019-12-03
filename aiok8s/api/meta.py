@@ -159,7 +159,8 @@ class _ObjectAccessor:
         return self._obj.kind
 
     # Motivated by apimachinery/pkg/apis/meta/v1/meta.go GroupVersionKind()
-    def get_group_version_kind(self):
+    @property
+    def group_version_kind(self):
         group, version = self.api_version.split("/")
         return schema.GroupVersionKind(group, version, self.kind)
 
@@ -172,8 +173,3 @@ class _UnstructuredObjectAccessor(_ObjectAccessor):
     @property
     def kind(self):
         return self._obj["kind"]
-
-    def set_group_version_kind(self, gvk):
-        api_version = f"{gvk.group}/{gvk.version}"
-        self._obj["apiVersion"] = api_version
-        self._obj["kind"] = gvk.kind

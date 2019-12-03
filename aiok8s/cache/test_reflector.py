@@ -23,7 +23,6 @@ from kubernetes.client.models import (
     V1Service,
 )
 
-from aiok8s.api import meta
 from aiok8s.cache import fake_custom_store, fifo, store
 from aiok8s.cache.reflector import _DEFAULT_EXPECTED_TYPE_NAME, Reflector
 from aiok8s.cache.testing.util import async_test
@@ -43,7 +42,7 @@ class TestReflector(unittest.TestCase):
 
         lister_watcher = TestLW(list_func, lambda _: fw)
         r = Reflector(
-            lister_watcher, V1Pod(), store.new_store(store.meta_namespace_key_func), 0
+            lister_watcher, V1Pod, store.new_store(store.meta_namespace_key_func), 0
         )
         asyncio.ensure_future(r.list_and_watch())
         await fw.error(pod)
@@ -63,7 +62,7 @@ class TestReflector(unittest.TestCase):
             return V1PodList(metadata=V1ListMeta(resource_version="1"), items=[])
 
         lister_watcher = TestLW(list_func, lambda _: fw)
-        r = Reflector(lister_watcher, V1Pod(), s, 0)
+        r = Reflector(lister_watcher, V1Pod, s, 0)
         task = asyncio.ensure_future(r.run())
         await fw.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
         task.cancel()
@@ -77,14 +76,14 @@ class TestReflector(unittest.TestCase):
     @async_test
     async def test_resync_queue(self):
         s = store.new_store(store.meta_namespace_key_func)
-        g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0.001)
+        g = Reflector(TestLW.__new__(TestLW), V1Pod, s, 0.001)
         a, _ = g._resync_queue()
         await asyncio.wait_for(a.get(), wait.FOREVER_TEST_TIMEOUT)
 
     @async_test
     async def test_watch_handler_error(self):
         s = store.new_store(store.meta_namespace_key_func)
-        g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0)
+        g = Reflector(TestLW.__new__(TestLW), V1Pod, s, 0)
         fw = watch.new_fake()
         await fw.stop()
         with self.assertRaises(Exception):
@@ -93,7 +92,7 @@ class TestReflector(unittest.TestCase):
     @async_test
     async def test_watch_handler(self):
         s = store.new_store(store.meta_namespace_key_func)
-        g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0)
+        g = Reflector(TestLW.__new__(TestLW), V1Pod, s, 0)
         fw = watch.new_fake()
         await s.add(V1Pod(metadata=V1ObjectMeta(name="foo")))
         await s.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
@@ -154,7 +153,7 @@ class TestReflector(unittest.TestCase):
 
         lw = TestLW(list_func, watch_func)
         s = fifo.FIFO(store.meta_namespace_key_func)
-        r = Reflector(lw, V1Pod(), s, 0)
+        r = Reflector(lw, V1Pod, s, 0)
         asyncio.ensure_future(r.list_and_watch())
 
         ids = ["foo", "bar", "baz", "qux", "zoo"]
@@ -256,7 +255,7 @@ class TestReflector(unittest.TestCase):
                 return fw
 
             lw = TestLW(list_func, watch_func)
-            r = Reflector(lw, V1Pod(), s, 0)
+            r = Reflector(lw, V1Pod, s, 0)
             try:
                 await r.list_and_watch()
             except Exception:
@@ -284,23 +283,21 @@ class TestReflector(unittest.TestCase):
 
         lw = TestLW(list_func, watch_func)
         resync_period = 0.001
-        r = Reflector(lw, V1Pod(), s, resync_period)
+        r = Reflector(lw, V1Pod, s, resync_period)
         await r.list_and_watch()
         self.assertEqual(iteration, 2)
 
     def test_set_expected_type(self):
-        obj = {}
         gvk = schema.GroupVersionKind(group="mygroup", version="v1", kind="MyKind")
-        meta.type_accessor(obj).set_group_version_kind(gvk)
         test_cases = {
             "None type": {"expected_type_name": _DEFAULT_EXPECTED_TYPE_NAME},
             "Normal type": {
-                "input_type": V1Pod(),
+                "input_type": V1Pod,
                 "expected_type_name": "V1Pod",
                 "expected_type": V1Pod,
             },
             "Unstructured type with GVK": {
-                "input_type": obj,
+                "input_type": gvk,
                 "expected_type_name": str(gvk),
                 "expected_type": dict,
                 "expected_gvk": gvk,

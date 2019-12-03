@@ -54,7 +54,7 @@ class TestController(unittest.TestCase):
         h = ResourceEventHandlerFuncs(
             add_func=add_func, update_func=update_func, delete_func=delete_func
         )
-        _, controller = new_informer(source, V1Pod(), 0.1, h)
+        _, controller = new_informer(source, V1Pod, 0.1, h)
         self.assertFalse(controller.has_synced())
 
         controller_task = asyncio.ensure_future(controller.run())
@@ -141,7 +141,7 @@ class TestController(unittest.TestCase):
 
         lw = TestLW(source.list, watch_func)
         h = ResourceEventHandlerFuncs(update_func=update_func, delete_func=delete_func)
-        _, controller = new_informer(lw, V1Pod(), 0, h)
+        _, controller = new_informer(lw, V1Pod, 0, h)
 
         controller_task = asyncio.ensure_future(controller.run())
         await watch_event.wait()

@@ -19,6 +19,7 @@ import random
 from aiok8s.api import meta
 from aiok8s.util import clock
 from aiok8s.watch import watch
+from aiok8s.runtime import schema
 
 logger = logging.getLogger(__name__)
 
@@ -108,19 +109,21 @@ class Reflector:
         return self._last_sync_resource_version
 
     def _set_expected_type(self, expected_type):
-        self._expected_type = expected_type and type(expected_type)
+        # Departs from `client-go` because objects are typed differently.
+        # Accepts either a type or `GroupVersionKind` to be a little more Pythonic
+        # by not requiring instantiation of a type
+        if isinstance(expected_type, schema.GroupVersionKind):
+            self._expected_gvk = expected_type
+            self._expected_type = dict
+            self._expected_type_name = str(expected_type)
+            return
 
-        if isinstance(expected_type, dict):
-            gvk = meta.type_accessor(expected_type).get_group_version_kind()
-            self._expected_gvk = gvk
-            self._expected_type_name = str(gvk)
+        self._expected_gvk = None
+        self._expected_type = expected_type
+        if expected_type is None:
+            self._expected_type_name = _DEFAULT_EXPECTED_TYPE_NAME
         else:
-            self._expected_gvk = None
-
-            if expected_type is None:
-                self._expected_type_name = _DEFAULT_EXPECTED_TYPE_NAME
-            else:
-                self._expected_type_name = self._expected_type.__name__
+            self._expected_type_name = self._expected_type.__name__
 
     def _resync_queue(self):
         if not self._resync_period:
@@ -168,7 +171,7 @@ class Reflector:
                     )
                     continue
                 if self._expected_gvk is not None:
-                    gvk = meta.type_accessor(event["object"]).get_group_version_kind()
+                    gvk = meta.type_accessor(event["object"]).group_version_kind
                     if self._expected_gvk != gvk:
                         logger.error(
                             "expected gvk %s, but watch event object had gvk %s",
