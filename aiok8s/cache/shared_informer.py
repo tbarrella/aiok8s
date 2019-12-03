@@ -40,12 +40,12 @@ def new_shared_index_informer(
     )
 
 
-async def wait_for_cache_sync(stop_event, *cache_syncs):
+async def wait_for_cache_sync(*cache_syncs):
     def condition():
         return all(sync_func() for sync_func in cache_syncs)
 
     try:
-        await wait.poll_immediate_until(_SYNCED_POLL_PERIOD, condition, stop_event)
+        await wait.poll_immediate_until(_SYNCED_POLL_PERIOD, condition)
     except asyncio.CancelledError:
         raise
     except Exception:

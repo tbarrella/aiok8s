@@ -60,7 +60,7 @@ class _SharedInformerFactory:
         stop_task = asyncio.ensure_future(_create_stop_task(stop_event, tasks))
         self._stop_tasks.append(stop_task)
 
-    async def wait_for_cache_sync(self, stop_event):
+    async def wait_for_cache_sync(self):
         informers = {
             informer_type: informer
             for informer_type, informer in self._informers.items()
@@ -68,7 +68,7 @@ class _SharedInformerFactory:
         }
         return {
             informer_type: await shared_informer.wait_for_cache_sync(
-                stop_event, informer.has_synced
+                informer.has_synced
             )
             for informer_type, informer in informers.items()
         }
