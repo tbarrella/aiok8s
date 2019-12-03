@@ -46,6 +46,8 @@ async def wait_for_cache_sync(stop_event, *cache_syncs):
 
     try:
         await wait.poll_immediate_until(_SYNCED_POLL_PERIOD, condition, stop_event)
+    except asyncio.CancelledError:
+        raise
     except Exception:
         logger.info("stop requested")
         return False
@@ -396,6 +398,8 @@ class _ProcessListener:
         async def f():
             try:
                 await wait.exponential_backoff(retry.DEFAULT_RETRY, condition)
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 return
             stop_event.set()

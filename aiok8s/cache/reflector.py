@@ -66,6 +66,8 @@ class Reflector:
                         logger.debug("forcing resync")
                         try:
                             await self._store.resync()
+                        except asyncio.CancelledError:
+                            raise
                         except Exception as e:
                             await resync_error_queue.put(e)
                             return

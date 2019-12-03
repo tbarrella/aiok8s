@@ -157,6 +157,8 @@ class DeltaFIFO:
                     self._add_if_not_present(id_, item)
                     if e.__cause__:
                         raise fifo.ProcessError(item) from e.__cause__
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     raise fifo.ProcessError(item) from e
                 return item
