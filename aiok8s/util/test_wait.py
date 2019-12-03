@@ -34,7 +34,7 @@ class TestWait(unittest.TestCase):
         event.set()
 
         async def f():
-            raise Exception("should not have been invoked")
+            self.fail("should not have been invoked")
 
         await until(f, 0, event)
 
@@ -59,7 +59,7 @@ class TestWait(unittest.TestCase):
         event.set()
 
         async def f():
-            raise Exception("should not have been invoked")
+            self.fail("should not have been invoked")
 
         await jitter_until(f, 0, 1, True, event)
 
