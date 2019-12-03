@@ -25,11 +25,7 @@ from kubernetes.client.models import (
 
 from aiok8s.api import meta
 from aiok8s.cache import fake_custom_store, fifo, store
-from aiok8s.cache.reflector import (
-    _DEFAULT_EXPECTED_TYPE_NAME,
-    Reflector,
-    _StopRequestedError,
-)
+from aiok8s.cache.reflector import _DEFAULT_EXPECTED_TYPE_NAME, Reflector
 from aiok8s.cache.testing.util import async_test
 from aiok8s.runtime import schema
 from aiok8s.util import wait
@@ -49,7 +45,7 @@ class TestReflector(unittest.TestCase):
         r = Reflector(
             lister_watcher, V1Pod(), store.new_store(store.meta_namespace_key_func), 0
         )
-        asyncio.ensure_future(r.list_and_watch(asyncio.Event()))
+        asyncio.ensure_future(r.list_and_watch())
         await fw.error(pod)
 
         async def aw():
@@ -60,7 +56,6 @@ class TestReflector(unittest.TestCase):
 
     @async_test
     async def test_run_until(self):
-        stop_event = asyncio.Event()
         s = store.new_store(store.meta_namespace_key_func)
         fw = watch.new_fake()
 
@@ -69,9 +64,9 @@ class TestReflector(unittest.TestCase):
 
         lister_watcher = TestLW(list_func, lambda _: fw)
         r = Reflector(lister_watcher, V1Pod(), s, 0)
-        asyncio.ensure_future(r.run(stop_event))
+        task = asyncio.ensure_future(r.run())
         await fw.add(V1Pod(metadata=V1ObjectMeta(name="bar")))
-        stop_event.set()
+        task.cancel()
 
         async def aw():
             async for _ in fw:
@@ -93,7 +88,7 @@ class TestReflector(unittest.TestCase):
         fw = watch.new_fake()
         await fw.stop()
         with self.assertRaises(Exception):
-            await g._watch_handler(fw, {}, asyncio.Queue(), asyncio.Event())
+            await g._watch_handler(fw, {}, asyncio.Queue())
 
     @async_test
     async def test_watch_handler(self):
@@ -116,7 +111,7 @@ class TestReflector(unittest.TestCase):
 
         asyncio.ensure_future(aw())
         options = {}
-        await g._watch_handler(fw, options, asyncio.Queue(), asyncio.Event())
+        await g._watch_handler(fw, options, asyncio.Queue())
 
         def mk_pod(id_, rv):
             return V1Pod(metadata=V1ObjectMeta(name=id_, resource_version=rv))
@@ -141,16 +136,6 @@ class TestReflector(unittest.TestCase):
         self.assertEqual(g.last_sync_resource_version(), "32")
 
     @async_test
-    async def test_stop_watch(self):
-        s = store.new_store(store.meta_namespace_key_func)
-        g = Reflector(TestLW.__new__(TestLW), V1Pod(), s, 0)
-        fw = watch.new_fake()
-        stop_watch = asyncio.Event()
-        stop_watch.set()
-        with self.assertRaises(_StopRequestedError):
-            await g._watch_handler(fw, {}, asyncio.Queue(), stop_watch)
-
-    @async_test
     async def test_list_and_watch(self):
         created_fakes = asyncio.Queue()
         expected_rvs = ["1", "3"]
@@ -170,7 +155,7 @@ class TestReflector(unittest.TestCase):
         lw = TestLW(list_func, watch_func)
         s = fifo.FIFO(store.meta_namespace_key_func)
         r = Reflector(lw, V1Pod(), s, 0)
-        asyncio.ensure_future(r.list_and_watch(asyncio.Event()))
+        asyncio.ensure_future(r.list_and_watch())
 
         ids = ["foo", "bar", "baz", "qux", "zoo"]
         fw = None
@@ -273,14 +258,13 @@ class TestReflector(unittest.TestCase):
             lw = TestLW(list_func, watch_func)
             r = Reflector(lw, V1Pod(), s, 0)
             try:
-                await r.list_and_watch(asyncio.Event())
+                await r.list_and_watch()
             except Exception:
                 pass
 
     @async_test
     async def test_resync(self):
         iteration = 0
-        stop_event = asyncio.Event()
         rerr = Exception("expected resync reached")
 
         def resync_func():
@@ -301,7 +285,7 @@ class TestReflector(unittest.TestCase):
         lw = TestLW(list_func, watch_func)
         resync_period = 0.001
         r = Reflector(lw, V1Pod(), s, resync_period)
-        await r.list_and_watch(stop_event)
+        await r.list_and_watch()
         self.assertEqual(iteration, 2)
 
     def test_set_expected_type(self):

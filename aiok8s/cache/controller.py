@@ -16,7 +16,7 @@ import asyncio
 from typing import Any, Awaitable, Callable, NamedTuple, Optional
 
 from aiok8s.cache import delta_fifo, fifo, reflector, store
-from aiok8s.util import clock, wait
+from aiok8s.util import clock
 
 ShouldResyncFunc = Callable[[], bool]
 ProcessFunc = Callable[[Any], Awaitable[None]]
@@ -44,12 +44,7 @@ class _Controller:
         self._reflector_mutex = asyncio.Lock()
         self._clock = clock.RealClock()
 
-    async def run(self, stop_event):
-        async def coro():
-            await stop_event.wait()
-            await self._config.queue.close()
-
-        asyncio.ensure_future(coro())
+    async def run(self):
         r = reflector.Reflector(
             self._config.lister_watcher,
             self._config.object_type,
@@ -62,9 +57,15 @@ class _Controller:
         async with self._reflector_mutex:
             self._reflector = r
 
-        task = asyncio.ensure_future(r.run(stop_event))
+        task = asyncio.ensure_future(r.run())
         try:
-            await wait.until(self._process_loop, 1, stop_event)
+            while True:
+                await self._process_loop()
+                await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            task.cancel()
+            await self._config.queue.close()
+            raise
         finally:
             await task
 

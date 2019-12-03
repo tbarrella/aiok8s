@@ -20,7 +20,6 @@ from collections import defaultdict
 
 from kubernetes.client.models import V1ObjectMeta, V1Pod
 
-from aiok8s.util import wait
 from aiok8s.cache.controller import (
     ResourceEventHandlerFuncs,
     deletion_handling_meta_namespace_key_func,
@@ -28,6 +27,7 @@ from aiok8s.cache.controller import (
 )
 from aiok8s.cache.testing import fake_controller_source
 from aiok8s.cache.testing.util import async_test
+from aiok8s.util import wait
 
 
 class TestController(unittest.TestCase):
@@ -57,8 +57,7 @@ class TestController(unittest.TestCase):
         _, controller = new_informer(source, V1Pod(), 0.1, h)
         self.assertFalse(controller.has_synced())
 
-        stop = asyncio.Event()
-        asyncio.ensure_future(controller.run(stop))
+        controller_task = asyncio.ensure_future(controller.run())
 
         await wait.poll(0.1, wait.FOREVER_TEST_TIMEOUT, controller.has_synced)
         self.assertTrue(controller.has_synced())
@@ -89,10 +88,8 @@ class TestController(unittest.TestCase):
 
         await asyncio.gather(*(task() for _ in range(3)))
 
-        await asyncio.sleep(0.1)
-        stop.set()
-        # TODO: Figure out why this is necessary...
-        await asyncio.sleep(0.1)
+        controller_task.cancel()
+        await asyncio.gather(controller_task, return_exceptions=True)
 
         await output_set_lock.acquire()
 
@@ -146,17 +143,14 @@ class TestController(unittest.TestCase):
         h = ResourceEventHandlerFuncs(update_func=update_func, delete_func=delete_func)
         _, controller = new_informer(lw, V1Pod(), 0, h)
 
-        stop = asyncio.Event()
-        asyncio.ensure_future(controller.run(stop))
+        controller_task = asyncio.ensure_future(controller.run())
         await watch_event.wait()
 
         aws = [f(f"{i}-{j}") for i in range(threads) for j, f in enumerate(tests)]
         await asyncio.gather(*aws)
         await test_done_queue.join()
-        stop.set()
-
-        # TODO: Figure out why this is necessary...
-        await asyncio.sleep(0.1)
+        controller_task.cancel()
+        await asyncio.gather(controller_task, return_exceptions=True)
 
 
 class TestLW:

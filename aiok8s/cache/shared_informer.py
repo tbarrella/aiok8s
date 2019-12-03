@@ -150,9 +150,12 @@ class _SharedIndexInformer:
 
         processor_stop_event = asyncio.Event()
         task = asyncio.ensure_future(self._processor._run(processor_stop_event))
+        controller_task = asyncio.ensure_future(self._controller.run())
         try:
-            await self._controller.run(stop_event)
+            await stop_event.wait()
         finally:
+            controller_task.cancel()
+            await asyncio.gather(controller_task, return_exceptions=True)
             async with self._started_lock:
                 self._stopped = True
             processor_stop_event.set()

@@ -17,7 +17,7 @@ import logging
 import random
 
 from aiok8s.api import meta
-from aiok8s.util import clock, wait
+from aiok8s.util import clock
 from aiok8s.watch import watch
 
 logger = logging.getLogger(__name__)
@@ -36,26 +36,19 @@ class Reflector:
         self._last_sync_resource_version = ""
         self._set_expected_type(expected_type)
 
-    async def run(self, stop_event):
-        async def f():
-            await self.list_and_watch(stop_event)
-
+    async def run(self):
         logger.debug(
             "Starting reflector %s (%s)", self._expected_type_name, self._resync_period
         )
-        await wait.until(f, self._period, stop_event)
+        while True:
+            await self.list_and_watch()
+            await asyncio.sleep(self._period)
 
-    async def list_and_watch(self, stop_event):
+    async def list_and_watch(self):
         logger.debug("Listing and watching %s", self._expected_type_name)
-        stop_task = asyncio.ensure_future(stop_event.wait())
         options = {"resource_version": "0"}
 
-        list_task = asyncio.ensure_future(self._lister_watcher.list(options))
-        await asyncio.wait([list_task, stop_task], return_when=asyncio.FIRST_COMPLETED)
-        if stop_event.is_set():
-            list_task.cancel()
-            return
-        list_ = await list_task
+        list_ = await self._lister_watcher.list(options)
         list_meta = meta.list_accessor(list_)
         resource_version = list_meta.resource_version
         items = meta.extract_list(list_)
@@ -68,14 +61,7 @@ class Reflector:
             resync_queue, cleanup = self._resync_queue()
             try:
                 while True:
-                    resync_queue_task = asyncio.ensure_future(resync_queue.get())
-                    await asyncio.wait(
-                        [resync_queue_task, stop_task],
-                        return_when=asyncio.FIRST_COMPLETED,
-                    )
-                    if stop_event.is_set():
-                        resync_queue_task.cancel()
-                        return
+                    await resync_queue.get()
                     if self.should_resync is None or self.should_resync():
                         logger.debug("forcing resync")
                         try:
@@ -91,30 +77,30 @@ class Reflector:
         resync_task = asyncio.ensure_future(resync())
         options = {"resource_version": resource_version}
         try:
-            while not stop_event.is_set():
+            while True:
                 timeout_seconds = int(_MIN_WATCH_TIMEOUT * (random.random() + 1))
                 # TODO: AllowWatchBookmarks
                 options["timeout_seconds"] = timeout_seconds
                 try:
                     w = await self._lister_watcher.watch(options)
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     # TODO: Handle ECONNREFUSED
                     logger.error("Failed to watch %s: %r", self._expected_type_name, e)
                     return
                 try:
-                    await self._watch_handler(
-                        w, options, resync_error_queue, stop_event
-                    )
+                    await self._watch_handler(w, options, resync_error_queue)
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     logger.warning(
                         "watch of %s ended with: %r", self._expected_type_name, e
                     )
                     return
         finally:
-            tasks = [resync_task, stop_task]
-            for task in tasks:
-                task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
+            resync_task.cancel()
+            await asyncio.gather(resync_task, return_exceptions=True)
 
     def last_sync_resource_version(self):
         return self._last_sync_resource_version
@@ -144,9 +130,8 @@ class Reflector:
         found = list(items)
         await self._store.replace(found, resource_version)
 
-    async def _watch_handler(self, w, options, error_queue, stop_event):
+    async def _watch_handler(self, w, options, error_queue):
         start = self._clock.now()
-        stop_task = asyncio.ensure_future(stop_event.wait())
         event_count = 0
         event_queue = asyncio.Queue()
 
@@ -162,11 +147,8 @@ class Reflector:
             while True:
                 event_task = asyncio.ensure_future(event_queue.get())
                 done, _ = await asyncio.wait(
-                    [event_task, error_task, stop_task],
-                    return_when=asyncio.FIRST_COMPLETED,
+                    [event_task, error_task], return_when=asyncio.FIRST_COMPLETED
                 )
-                if stop_event.is_set():
-                    raise _StopRequestedError
                 if error_task in done:
                     raise await error_task
                 event = await event_task
@@ -201,16 +183,22 @@ class Reflector:
                 if event["type"] == watch.EventType.ADDED:
                     try:
                         await self._store.add(event["object"])
+                    except asyncio.CancelledError:
+                        raise
                     except Exception:
                         pass
                 elif event["type"] == watch.EventType.MODIFIED:
                     try:
                         await self._store.update(event["object"])
+                    except asyncio.CancelledError:
+                        raise
                     except Exception:
                         pass
                 elif event["type"] == watch.EventType.DELETED:
                     try:
                         await self._store.delete(event["object"])
+                    except asyncio.CancelledError:
+                        raise
                     except Exception:
                         pass
                 options["resource_version"] = new_resource_version
@@ -228,7 +216,7 @@ class Reflector:
                 event_count,
             )
         finally:
-            tasks = [event_task, get_events_task, error_task, stop_task]
+            tasks = [event_task, get_events_task, error_task]
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
@@ -239,7 +227,3 @@ class Reflector:
 
 _DEFAULT_EXPECTED_TYPE_NAME = "<unspecified>"
 _MIN_WATCH_TIMEOUT = 5 * 60
-
-
-class _StopRequestedError(Exception):
-    pass
