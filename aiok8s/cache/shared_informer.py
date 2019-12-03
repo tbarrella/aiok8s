@@ -133,7 +133,7 @@ class _SharedIndexInformer:
                 for item in self._indexer.list():
                     await listener._add(_AddNotification(new_obj=item))
 
-    async def run(self, stop_event):
+    async def run(self):
         fifo = delta_fifo.DeltaFIFO(store.meta_namespace_key_func, self._indexer)
         cfg = controller.Config(
             queue=fifo,
@@ -152,12 +152,9 @@ class _SharedIndexInformer:
 
         processor_stop_event = asyncio.Event()
         task = asyncio.ensure_future(self._processor._run(processor_stop_event))
-        controller_task = asyncio.ensure_future(self._controller.run())
         try:
-            await stop_event.wait()
+            await self._controller.run()
         finally:
-            controller_task.cancel()
-            await asyncio.gather(controller_task, return_exceptions=True)
             async with self._started_lock:
                 self._stopped = True
             processor_stop_event.set()

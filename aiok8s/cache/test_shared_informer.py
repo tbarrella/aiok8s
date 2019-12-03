@@ -53,9 +53,8 @@ class TestSharedInformer(unittest.TestCase):
         )
         listeners = [listener1, listener2, listener3]
 
-        stop = asyncio.Event()
         try:
-            asyncio.ensure_future(informer.run(stop))
+            task = asyncio.ensure_future(informer.run())
 
             for listener in listeners:
                 self.assertTrue(await listener._ok())
@@ -80,10 +79,8 @@ class TestSharedInformer(unittest.TestCase):
             self.assertEqual(len(listener1._received_item_names), 0)
             self.assertEqual(len(listener2._received_item_names), 0)
         finally:
-            stop.set()
-
-            # TODO: Figure out why this is necessary...
-            await asyncio.sleep(0.1)
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     @async_test
     async def test_resync_check_period(self):
@@ -134,14 +131,13 @@ class TestSharedInformer(unittest.TestCase):
         informer = new_shared_informer(source, V1Pod, 1)
         listener = TestListener("race_listener", 0)
 
-        stop = asyncio.Event()
         asyncio.ensure_future(
             informer.add_event_handler_with_resync_period(
                 listener, listener._resync_period
             )
         )
-        asyncio.ensure_future(informer.run(stop))
-        stop.set()
+        task = asyncio.ensure_future(informer.run())
+        task.cancel()
 
 
 class TestListener:

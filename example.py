@@ -63,10 +63,7 @@ async def _run():
 
     print("running")
     informer_factory.start(stop)
-
-    await stop.wait()
-    # TODO: Related to https://github.com/tbarrella/aiok8s/issues/13
-    await asyncio.sleep(1)
+    await informer_factory.join()
 
 
 async def get_informer_factory(namespace):

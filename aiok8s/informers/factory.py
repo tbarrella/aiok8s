@@ -48,12 +48,17 @@ class _SharedInformerFactory:
         self._custom_resync = custom_resync
         self._informers = {}
         self._started_informers = set()
+        self._stop_tasks = []
 
     def start(self, stop_event):
+        tasks = []
         for informer_type, informer in self._informers.items():
             if informer_type not in self._started_informers:
-                asyncio.ensure_future(informer.run(stop_event))
+                tasks.append(asyncio.ensure_future(informer.run()))
                 self._started_informers.add(informer_type)
+
+        stop_task = asyncio.ensure_future(_create_stop_task(stop_event, tasks))
+        self._stop_tasks.append(stop_task)
 
     async def wait_for_cache_sync(self, stop_event):
         informers = {
@@ -67,6 +72,10 @@ class _SharedInformerFactory:
             )
             for informer_type, informer in informers.items()
         }
+
+    # Not in `client-go`
+    async def join(self):
+        await asyncio.gather(*self._stop_tasks)
 
     def pods(self):
         return _PodInformer(self)
@@ -83,6 +92,13 @@ class _SharedInformerFactory:
 
 
 _MIN_RESYNC_PERIOD = 12 * 60 * 60
+
+
+async def _create_stop_task(stop_event, tasks):
+    await stop_event.wait()
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 class _Informer:
