@@ -45,7 +45,7 @@ async def wait_for_cache_sync(*cache_syncs):
         return all(sync_func() for sync_func in cache_syncs)
 
     try:
-        await wait.poll_immediate_until(_SYNCED_POLL_PERIOD, condition)
+        await wait.poll_immediate_infinite(_SYNCED_POLL_PERIOD, condition)
     except asyncio.CancelledError:
         raise
     except Exception:

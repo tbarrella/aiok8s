@@ -93,7 +93,7 @@ async def exponential_backoff(backoff, condition):
 
 # TODO: test, rewrite?
 async def poll(interval, timeout, condition):
-    await asyncio.wait_for(poll_immediate_until(interval, condition), timeout)
+    await asyncio.wait_for(poll_infinite(interval, condition), timeout)
 
 
 # TODO: test, rewrite?
@@ -104,8 +104,15 @@ async def poll_immediate(interval, timeout, condition):
 
 
 # TODO: test, rewrite?
-async def poll_immediate_until(interval, condition):
+async def poll_infinite(interval, condition):
     while True:
         await asyncio.sleep(interval)
         if condition():
             return
+
+
+# TODO: test, rewrite?
+async def poll_immediate_infinite(interval, condition):
+    if condition():
+        return
+    await poll_infinite(interval, condition)
