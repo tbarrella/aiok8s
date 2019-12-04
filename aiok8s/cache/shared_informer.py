@@ -391,7 +391,7 @@ class _ProcessListener:
 
         async def f():
             try:
-                await wait.exponential_backoff(retry.DEFAULT_RETRY, condition)
+                await wait.exponential_backoff(retry.default_retry, condition)
             except asyncio.CancelledError:
                 raise
             except Exception:

@@ -14,4 +14,4 @@
 
 from aiok8s.util import wait
 
-DEFAULT_RETRY = wait.Backoff(steps=5, duration=0.01, factor=1, jitter=0.1)
+default_retry = wait.Backoff(steps=5, duration=0.01, factor=1, jitter=0.1)
