@@ -17,9 +17,9 @@ import logging
 import random
 
 from aiok8s.api import meta
+from aiok8s.runtime import schema
 from aiok8s.util import clock
 from aiok8s.watch import watch
-from aiok8s.runtime import schema
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,12 @@ class Reflector:
             "Starting reflector %s (%s)", self._expected_type_name, self._resync_period
         )
         while True:
-            await self.list_and_watch()
+            try:
+                await self.list_and_watch()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(repr(e))
             await asyncio.sleep(self._period)
 
     async def list_and_watch(self):
@@ -190,22 +195,38 @@ class Reflector:
                         await self._store.add(event["object"])
                     except asyncio.CancelledError:
                         raise
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.error(
+                            "unable to add watch event object (%r) to store: %r",
+                            event["object"],
+                            e,
+                        )
                 elif event["type"] == watch.EventType.MODIFIED:
                     try:
                         await self._store.update(event["object"])
                     except asyncio.CancelledError:
                         raise
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.error(
+                            "unable to update watch event object (%r) to store: %r",
+                            event["object"],
+                            e,
+                        )
                 elif event["type"] == watch.EventType.DELETED:
                     try:
                         await self._store.delete(event["object"])
                     except asyncio.CancelledError:
                         raise
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.error(
+                            "unable to delete watch event object (%r) from store: %r",
+                            event["object"],
+                            e,
+                        )
+                elif event["type"] == watch.EventType.BOOKMARK:
+                    pass
+                else:
+                    logger.error("unable to understand watch event object %r", event)
                 options["resource_version"] = new_resource_version
                 self._set_last_sync_resource_version(new_resource_version)
                 event_count += 1
