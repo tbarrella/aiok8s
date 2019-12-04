@@ -36,10 +36,6 @@ from kubernetes_asyncio import config
 from aiok8s.informers import factory
 
 
-def run():
-    asyncio.run(_run())
-
-
 class Handler:
     async def on_add(self, obj):
         print("added", obj.metadata.name)
@@ -52,7 +48,8 @@ class Handler:
 
 
 async def _run():
-    informer_factory = await get_informer_factory("kube-system")
+    await config.load_kube_config()
+    informer_factory = factory.new(namespace="kube-system")
     pod_informer = informer_factory.pods().informer()
     await pod_informer.add_event_handler(Handler())
 
@@ -61,15 +58,10 @@ async def _run():
     for signal_ in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(signal_, stop.set)
 
-    print("running")
     informer_factory.start(stop)
+    await informer_factory.wait_for_cache_sync()
     await informer_factory.join()
 
 
-async def get_informer_factory(namespace):
-    await config.load_kube_config()
-    return factory.new(namespace=namespace)
-
-
 if __name__ == "__main__":
-    run()
+    asyncio.run(_run())
