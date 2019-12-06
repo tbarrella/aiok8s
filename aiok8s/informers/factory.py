@@ -18,7 +18,7 @@ import random
 from kubernetes_asyncio import client, watch
 from kubernetes_asyncio.client import models
 
-from aiok8s.cache import index, list_watch, shared_informer
+from aiok8s.cache import index, list_watch, listers, shared_informer
 
 
 def new(
@@ -107,6 +107,9 @@ class _Informer:
 
     def informer(self):
         return self._factory._informer_for(self._object_type, self._new)
+
+    def lister(self):
+        return listers.new_generic_lister(self.informer().get_indexer())
 
     def _get_lister(self, client):
         api = self._api_cls(client)
