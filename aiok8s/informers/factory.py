@@ -133,8 +133,7 @@ class _Informer:
             return watch.Watch().stream(lister, **kwargs)
 
         indexers = index.Indexers(
-            # TODO: This has issues
-            # {index.NAMESPACE_INDEX: index.meta_namespace_index_func}
+            {index.NAMESPACE_INDEX: index.meta_namespace_index_func}
         )
         return shared_informer.new_shared_index_informer(
             list_watch.ListWatch(list_func, watch_func),

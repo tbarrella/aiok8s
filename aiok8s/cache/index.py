@@ -20,7 +20,7 @@ NAMESPACE_INDEX = "namespace"
 
 def meta_namespace_index_func(obj):
     metadata = meta.accessor(obj)
-    return metadata.namespace
+    return [metadata.namespace]
 
 
 class Index(dict):
