@@ -120,7 +120,7 @@ async def poll(interval, timeout, condition):
 
 # TODO: test, rewrite?
 async def poll_immediate(interval, timeout, condition):
-    if condition():
+    if await condition():
         return
     await poll(interval, timeout, condition)
 
@@ -129,12 +129,12 @@ async def poll_immediate(interval, timeout, condition):
 async def poll_infinite(interval, condition):
     while True:
         await asyncio.sleep(interval)
-        if condition():
+        if await condition():
             return
 
 
 # TODO: test, rewrite?
 async def poll_immediate_infinite(interval, condition):
-    if condition():
+    if await condition():
         return
     await poll_infinite(interval, condition)

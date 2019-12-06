@@ -59,7 +59,10 @@ class TestController(unittest.TestCase):
 
         controller_task = asyncio.ensure_future(controller.run())
 
-        await wait.poll(0.1, wait.FOREVER_TEST_TIMEOUT, controller.has_synced)
+        async def condition():
+            return controller.has_synced()
+
+        await wait.poll(0.1, wait.FOREVER_TEST_TIMEOUT, condition)
         self.assertTrue(controller.has_synced())
 
         async def task():

@@ -41,7 +41,7 @@ def new_shared_index_informer(
 
 
 async def wait_for_cache_sync(*cache_syncs):
-    def condition():
+    async def condition():
         return all(sync_func() for sync_func in cache_syncs)
 
     try:

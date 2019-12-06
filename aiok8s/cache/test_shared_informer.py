@@ -165,9 +165,9 @@ class TestListener:
             return False
 
         await asyncio.sleep(1)
-        return self._satisfied_expectations()
+        return await self._satisfied_expectations()
 
-    def _satisfied_expectations(self):
+    async def _satisfied_expectations(self):
         return (
             len(self._received_item_names) == len(self._expected_item_names)
             and set(self._received_item_names) == self._expected_item_names
