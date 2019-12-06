@@ -15,8 +15,8 @@
 import asyncio
 import random
 
-from kubernetes_asyncio import client, watch
-from kubernetes_asyncio.client import models
+from kubernetes_asyncio import watch
+from kubernetes_asyncio.client import api, models
 
 from aiok8s.cache import index, list_watch, listers, shared_informer
 
@@ -148,6 +148,6 @@ class _Informer:
 
 class _PodInformer(_Informer):
     _object_type = models.V1Pod
-    _api_cls = client.CoreV1Api
+    _api_cls = api.CoreV1Api
     _namespaced_lister = "list_namespaced_pod"
     _lister = "list_pod_for_all_namespaces"
