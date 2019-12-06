@@ -20,6 +20,28 @@ from aiok8s.util import _time
 FOREVER_TEST_TIMEOUT = 30
 
 
+# `Until` from `client-go` without taking a stop argument
+async def loop(f, period):
+    await jitter_loop(f, period, 0, True)
+
+
+# `JitterUntil` from `client-go` without taking a stop argument
+async def jitter_loop(f, period, jitter_factor, sliding):
+    while True:
+        if jitter_factor > 0:
+            jittered_period = jitter(period, jitter_factor)
+        else:
+            jittered_period = period
+        if not sliding:
+            # TODO: Reuse
+            t = _time.Timer(jittered_period)
+        await f()
+        if sliding:
+            t = _time.Timer(jittered_period)
+
+        await t.c.get()
+
+
 async def until(f, period, stop_event):
     await jitter_until(f, period, 0, True, stop_event)
 

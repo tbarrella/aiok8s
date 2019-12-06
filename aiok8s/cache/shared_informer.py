@@ -360,7 +360,6 @@ class _ProcessListener:
             stop_task.cancel()
 
     async def _run(self):
-        stop_event = asyncio.Event()
         stop_next_task = asyncio.ensure_future(self._stop_next.wait())
 
         async def get():
@@ -390,15 +389,17 @@ class _ProcessListener:
                     logger.error("unrecognized notification: %r", notification)
 
         async def f():
+            nonlocal task
             try:
                 await wait.exponential_backoff(retry.default_retry, condition)
             except asyncio.CancelledError:
                 raise
             except Exception:
                 return
-            stop_event.set()
+            task.cancel()
 
-        await wait.until(f, 60, stop_event)
+        task = asyncio.ensure_future(wait.loop(f, 60))
+        await asyncio.gather(task, return_exceptions=True)
         stop_next_task.cancel()
 
     def _should_resync(self, now):

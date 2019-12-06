@@ -22,12 +22,82 @@ from aiok8s.util.wait import (
     Backoff,
     WaitTimeoutError,
     exponential_backoff,
+    jitter_loop,
     jitter_until,
+    loop,
     until,
 )
 
 
 class TestWait(unittest.TestCase):
+    @async_test
+    async def test_loop(self):
+        task = None
+        called = asyncio.Queue()
+
+        async def f():
+            await called.put(None)
+
+        async def coro():
+            nonlocal task
+            task = asyncio.ensure_future(loop(f, 0))
+            await asyncio.gather(task, return_exceptions=True)
+            await called.put(None)
+
+        asyncio.ensure_future(coro())
+        await called.get()
+        task.cancel()
+        await called.get()
+
+    @async_test
+    async def test_jitter_loop(self):
+        task = None
+        called = asyncio.Queue()
+
+        async def f():
+            await called.put(None)
+
+        async def coro():
+            nonlocal task
+            task = asyncio.ensure_future(jitter_loop(f, 0, 1, True))
+            await asyncio.gather(task, return_exceptions=True)
+            await called.put(None)
+
+        asyncio.ensure_future(coro())
+        await called.get()
+        task.cancel()
+        await called.get()
+
+    @async_test
+    async def test_jitter_loop_returns_immediately(self):
+        now = time.time()
+
+        async def f():
+            nonlocal task
+            task.cancel()
+
+        task = asyncio.ensure_future(jitter_loop(f, 30, 1, True))
+        await asyncio.gather(task, return_exceptions=True)
+        self.assertLessEqual(time.time(), now + 25)
+
+    @async_test
+    async def test_jitter_loop_negative_factor(self):
+        now = time.time()
+        called = asyncio.Queue()
+        received = asyncio.Queue()
+
+        async def f():
+            await called.put(None)
+            await received.get()
+
+        task = asyncio.ensure_future(jitter_loop(f, 1, -30, True))
+        await called.get()
+        await received.put(None)
+        await called.get()
+        task.cancel()
+        await received.put(None)
+        self.assertLessEqual(time.time(), now + 3)
+
     @async_test
     async def test_until(self):
         event = asyncio.Event()
