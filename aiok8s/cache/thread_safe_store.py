@@ -140,3 +140,5 @@ class _ThreadSafeMap:
                 set_ = index.get(index_value)
                 if set_:
                     set_.remove(key)
+                    if not set_:
+                        del index[index_value]
