@@ -28,25 +28,24 @@ class DeltaFIFO:
         self._queue = []
         self._key_func = key_func
         self._known_objects = known_objects
-        self._lock = asyncio.Lock()
-        self._cond = asyncio.Condition(lock=self._lock)
+        self._cond = asyncio.Condition()
         self._populated = False
         self._initial_population_count = 0
         self._closed = False
 
     async def add(self, obj):
-        async with self._lock:
+        async with self._cond:
             self._populated = True
             return self._queue_action_locked(DeltaType.ADDED, obj)
 
     async def update(self, obj):
-        async with self._lock:
+        async with self._cond:
             self._populated = True
             return self._queue_action_locked(DeltaType.UPDATED, obj)
 
     async def delete(self, obj):
         id_ = self.key_of(obj)
-        async with self._lock:
+        async with self._cond:
             self._populated = True
             if not self._known_objects:
                 if id_ not in self._items:
@@ -77,7 +76,7 @@ class DeltaFIFO:
         return d and _copy_deltas(d)
 
     async def replace(self, list_, resource_version):
-        async with self._lock:
+        async with self._cond:
             keys = set()
             for item in list_:
                 key = self.key_of(item)
@@ -131,7 +130,7 @@ class DeltaFIFO:
                 self._initial_population_count = len(list_) + queued_deletions
 
     async def resync(self):
-        async with self._lock:
+        async with self._cond:
             if not self._known_objects:
                 return
             keys = self._known_objects.list_keys()
@@ -139,7 +138,7 @@ class DeltaFIFO:
                 self._sync_key_locked(k)
 
     async def pop(self, process):
-        async with self._lock:
+        async with self._cond:
             while True:
                 while not self._queue:
                     if self.is_closed():
@@ -167,15 +166,15 @@ class DeltaFIFO:
         if not isinstance(obj, Deltas):
             raise TypeError(f"object must be of type Deltas, but got {obj!r}")
         id_ = self.key_of(obj.newest().object)
-        async with self._lock:
+        async with self._cond:
             self._add_if_not_present(id_, obj)
 
     def has_synced(self):
         return self._populated and not self._initial_population_count
 
     async def close(self):
-        self._closed = True
         async with self._cond:
+            self._closed = True
             self._cond.notify_all()
 
     def key_of(self, obj):
