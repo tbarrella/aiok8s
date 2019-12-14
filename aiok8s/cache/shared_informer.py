@@ -388,18 +388,16 @@ class _ProcessListener:
                 else:
                     logger.error("unrecognized notification: %r", notification)
 
-        async def f():
-            nonlocal task
+        while True:
             try:
                 await wait.exponential_backoff(retry.default_retry, condition)
             except asyncio.CancelledError:
                 raise
             except Exception:
-                return
-            task.cancel()
+                await asyncio.sleep(60)
+            else:
+                break
 
-        task = asyncio.ensure_future(wait.loop(f, 60))
-        await asyncio.gather(task, return_exceptions=True)
         stop_next_task.cancel()
 
     def _should_resync(self, now):
