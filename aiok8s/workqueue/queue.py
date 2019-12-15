@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import asyncio
 import collections
 
@@ -18,14 +19,14 @@ from aiok8s.util import clock
 
 
 def new():
-    return Type(clock.RealClock(), _DEFAULT_UNFINISHED_WORK_UPDATE_PERIOD)
+    return Type(clock.RealClock())
 
 
 _DEFAULT_UNFINISHED_WORK_UPDATE_PERIOD = 0.5
 
 
 class Type:
-    def __init__(self, c, update_period):
+    def __init__(self, c, *, update_period=_DEFAULT_UNFINISHED_WORK_UPDATE_PERIOD):
         self._clock = c
         self._dirty = set()
         self._processing = set()

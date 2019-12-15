@@ -76,6 +76,38 @@ class TestClock(unittest.TestCase):
         self.assertTrue(two_sec.c().empty())
         tre_sec.c().get_nowait()
 
+    @async_test
+    async def test_fake_tick(self):
+        tc = FakeClock(time.time())
+        self.assertFalse(tc.has_waiters())
+        one_sec = tc.new_ticker(1).c()
+        self.assertTrue(tc.has_waiters())
+        one_oh_one_sec = tc.new_ticker(1.001).c()
+        two_sec = tc.new_ticker(2).c()
+        self.assertTrue(one_sec.empty())
+        self.assertTrue(one_oh_one_sec.empty())
+        self.assertTrue(two_sec.empty())
+        await tc.step(0.999)
+        self.assertTrue(one_sec.empty())
+        self.assertTrue(one_oh_one_sec.empty())
+        self.assertTrue(two_sec.empty())
+        await tc.step(0.001)
+        one_sec.get_nowait()
+        self.assertTrue(one_oh_one_sec.empty())
+        self.assertTrue(two_sec.empty())
+        await tc.step(0.001)
+        self.assertTrue(one_sec.empty())
+        one_oh_one_sec.get_nowait()
+        self.assertTrue(two_sec.empty())
+
+        await tc.step(1)
+        await tc.step(1)
+        await tc.step(1)
+        await tc.step(1)
+
+        accumulated_ticks = one_sec.qsize()
+        self.assertEqual(accumulated_ticks, 1)
+
     async def exercise_passive_clock(self, pc):
         t1 = time.time()
         t2 = t1 + 3600

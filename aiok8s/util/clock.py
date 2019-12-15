@@ -28,6 +28,9 @@ class RealClock:
     def new_timer(self, d):
         return _RealTimer(_time.Timer(d))
 
+    def new_ticker(self, d):
+        return _RealTicker(_time.Ticker(d))
+
 
 class FakePassiveClock:
     def __init__(self, t):
@@ -56,6 +59,18 @@ class FakeClock(FakePassiveClock):
         self._waiters.append(waiter)
         return _FakeTimer(fake_clock=self, waiter=waiter)
 
+    def new_ticker(self, d):
+        tick_time = self._time + d
+        queue = asyncio.Queue(maxsize=1)
+        waiter = _FakeClockWaiter(
+            target_time=tick_time,
+            dest_queue=queue,
+            step_interval=d,
+            skip_if_blocked=True,
+        )
+        self._waiters.append(waiter)
+        return _FakeTicker(queue)
+
     async def step(self, d):
         async with self._lock:
             await self._set_time_locked(self._time + d)
@@ -73,7 +88,7 @@ class FakeClock(FakePassiveClock):
         for w in self._waiters:
             if w._target_time <= t:
                 if w._skip_if_blocked:
-                    if not self._dest_queue.full():
+                    if not w._dest_queue.full():
                         w._dest_queue.put_nowait(t)
                 else:
                     await w._dest_queue.put(t)
@@ -137,3 +152,25 @@ class _FakeTimer:
                 w._target_time = self._fake_clock._time + d
                 return True
         return False
+
+
+class _RealTicker:
+    def __init__(self, ticker):
+        self._ticker = ticker
+
+    def c(self):
+        return self._ticker.c
+
+    def stop(self):
+        return self._ticker.stop()
+
+
+class _FakeTicker:
+    def __init__(self, c):
+        self._c = c
+
+    def c(self):
+        return self._c
+
+    def stop(self):
+        pass
