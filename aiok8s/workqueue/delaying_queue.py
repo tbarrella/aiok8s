@@ -127,45 +127,43 @@ class _WaitForPriorityQueue:
         self._pq = []
         self._entry_finder = {}
         self._counter = itertools.count()
-        self._peeked = None
+        self._len = 0
 
     def __len__(self):
-        return len(self._pq)
+        return self._len
 
     def insert(self, data, priority):
         if data in self._entry_finder:
             if not self._remove(data, priority):
                 return
+        else:
+            self._len += 1
         count = next(self._counter)
         entry = [priority, count, data]
         self._entry_finder[data] = entry
         heapq.heappush(self._pq, entry)
 
     def peek_priority(self):
-        if self._peeked:
-            priority, _, _ = self._peeked
-            return priority
         while self._pq:
-            entry = heapq.heappop(self._pq)
-            priority, _, data = entry
+            priority, _, data = self._pq[0]
             if data is not self._REMOVED:
-                del self._entry_finder[data]
-                self._peeked = entry
                 return priority
+            heapq.heappop(self._pq)
         raise KeyError
 
-    # Must call `peek_priority` at least once first
     def pop(self):
-        try:
-            _, _, data = self._peeked
-        except TypeError:
-            raise KeyError
-        self._peeked = None
-        return data
+        while self._pq:
+            _, _, data = heapq.heappop(self._pq)
+            if data is not self._REMOVED:
+                del self._entry_finder[data]
+                self._len -= 1
+                return data
+        raise KeyError
 
     def _remove(self, data, priority):
-        entry = self._entry_finder.pop(data)
+        entry = self._entry_finder[data]
         if entry[0] > priority:
+            self._entry_finder.pop(data)
             entry[-1] = self._REMOVED
             return True
         return False

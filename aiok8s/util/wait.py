@@ -115,7 +115,10 @@ async def exponential_backoff(backoff, condition):
 
 # TODO: test, rewrite?
 async def poll(interval, timeout, condition):
-    await asyncio.wait_for(poll_infinite(interval, condition), timeout)
+    try:
+        await asyncio.wait_for(poll_infinite(interval, condition), timeout)
+    except asyncio.TimeoutError:
+        raise WaitTimeoutError
 
 
 # TODO: test, rewrite?
