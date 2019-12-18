@@ -13,10 +13,12 @@
 # limitations under the License.
 
 from aiok8s.util import clock
-from aiok8s.workqueue import delaying_queue
+from aiok8s.workqueue import default_rate_limiters, delaying_queue
 
 
-def new(rate_limiter):
+def new(rate_limiter=None):
+    if not rate_limiter:
+        rate_limiter = default_rate_limiters.default_controller_rate_limiter()
     return _RateLimitingType(rate_limiter)
 
 
