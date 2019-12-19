@@ -15,6 +15,11 @@
 from typing import NamedTuple
 
 
+class Result(NamedTuple):
+    requeue: bool = False
+    requeue_after: float = 0
+
+
 class Request(NamedTuple):
     namespace: str
     name: str

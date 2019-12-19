@@ -22,18 +22,13 @@ import signal
 
 from kubernetes_asyncio import client, config
 
-from aiok8s.controller import builder, manager
-
-
-class Response:
-    requeue_after = 0
-    requeue = False
+from aiok8s.controller import builder, manager, reconcile
 
 
 class Reconciler:
     async def reconcile(self, request):
         print(request.name)
-        return Response()
+        return reconcile.Result()
 
 
 async def _run():
@@ -46,7 +41,10 @@ async def _run():
     for signal_ in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(signal_, task.cancel)
 
-    await asyncio.gather(task, return_exceptions=True)
+    try:
+        await task
+    except asyncio.CancelledError:
+        print("\nInterrupted...")
 
 
 if __name__ == "__main__":
