@@ -38,7 +38,6 @@ class _Controller:
         self.make_queue = make_queue
         self.max_concurrent_reconciles = 1
         self.jitter_period = 1
-        self.started = False
         self._mutex = asyncio.Lock()
         self._watches = []
 
@@ -53,8 +52,6 @@ class _Controller:
                 self.set_fields(predicate)
 
             self._watches.append(_WatchDescription(source, event_handler, predicates))
-            if self.started:
-                await source.start(event_handler, self.queue, predicates)
 
     async def start(self):
         self.queue = self.make_queue()
@@ -77,7 +74,6 @@ class _Controller:
                     asyncio.ensure_future(aw())
                     for _ in range(self.max_concurrent_reconciles)
                 ]
-                self.started = True
 
             await asyncio.gather(*aws)
         finally:

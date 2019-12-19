@@ -19,6 +19,11 @@ from aiok8s.controller import source as _source
 
 async def build_controller(manager, reconciler, *, api_type):
     controller = _do_controller(manager, reconciler)
+
+    # NB: Different from `controller-runtime`
+    # Create informer before starting the cache to simplify logic
+    await manager.get_cache().get_informer(api_type)
+
     await _do_watch(controller, api_type)
 
 

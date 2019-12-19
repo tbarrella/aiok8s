@@ -35,7 +35,6 @@ class _SpecificInformersMap:
         self._create_lister_watcher = create_lister_watcher
         self._informers_by_gvk = {}
         self._mutex = asyncio.Lock()
-        # TODO: Understand this better and fully implement
         self._started = False
 
     async def start(self):
@@ -84,8 +83,6 @@ class _SpecificInformersMap:
             new_informer, _cache_reader.CacheReader(new_informer.get_indexer(), gvk)
         )
         self._informers_by_gvk[gvk] = informer
-        if self._started:
-            asyncio.ensure_future(informer.informer.run())
         return informer
 
 
