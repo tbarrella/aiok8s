@@ -1,66 +1,82 @@
 """
 
-Example using a pod informer.
+Controller example.
 
 Usage:
 kind create cluster
 python example.py
 
 Output:
-added kube-proxy-c7d7p
-added kindnet-t5bmr
-added coredns-5c98db65d4-qdv6t
-added kube-apiserver-kind-control-plane
-added kube-scheduler-kind-control-plane
-added etcd-kind-control-plane
-added coredns-5c98db65d4-br9qg
-added kube-controller-manager-kind-control-plane
-updated coredns-5c98db65d4-br9qg
-updated coredns-5c98db65d4-br9qg
-added coredns-5c98db65d4-7wtns
-updated coredns-5c98db65d4-7wtns
-updated coredns-5c98db65d4-7wtns
-updated coredns-5c98db65d4-7wtns
-updated coredns-5c98db65d4-br9qg
-updated coredns-5c98db65d4-br9qg
-updated coredns-5c98db65d4-br9qg
-deleted coredns-5c98db65d4-br9qg
-updated coredns-5c98db65d4-7wtns
+kube-system/kube-controller-manager-kind-control-plane: ip 172.17.0.2
+kube-system/kube-proxy-zvl88: ip 172.17.0.2
+kube-system/kube-apiserver-kind-control-plane: ip 172.17.0.2
+kube-system/kube-scheduler-kind-control-plane: ip 172.17.0.2
+kube-system/etcd-kind-control-plane: ip 172.17.0.2
+kube-system/coredns-5644d7b6d9-l9vhx: ip 10.244.0.35
+kube-system/coredns-5644d7b6d9-zj2rw: ip 10.244.0.36
+kube-system/kindnet-85dqj: ip 172.17.0.2
+kube-system/coredns-5644d7b6d9-l9vhx: ip 10.244.0.35
+kube-system/coredns-5644d7b6d9-fh7l8: ip None
+kube-system/coredns-5644d7b6d9-zj2rw: ip 10.244.0.36
+kube-system/coredns-5644d7b6d9-fh7l8: ip None
+kube-system/coredns-5644d7b6d9-dvf8h: ip None
+kube-system/coredns-5644d7b6d9-dvf8h: ip None
+kube-system/coredns-5644d7b6d9-fh7l8: ip None
+kube-system/coredns-5644d7b6d9-dvf8h: ip None
+kube-system/coredns-5644d7b6d9-l9vhx: ip 10.244.0.35
+kube-system/coredns-5644d7b6d9-zj2rw: ip 10.244.0.36
+kube-system/coredns-5644d7b6d9-fh7l8: ip 10.244.0.37
+kube-system/coredns-5644d7b6d9-dvf8h: ip 10.244.0.38
+kube-system/coredns-5644d7b6d9-dvf8h: ip 10.244.0.38
+kube-system/coredns-5644d7b6d9-zj2rw: ip 10.244.0.36
+coredns-5644d7b6d9-zj2rw/coredns-5644d7b6d9-zj2rw deleted
+kube-system/coredns-5644d7b6d9-l9vhx: ip 10.244.0.35
+coredns-5644d7b6d9-l9vhx/coredns-5644d7b6d9-l9vhx deleted
+kube-system/coredns-5644d7b6d9-fh7l8: ip 10.244.0.37
 """
 
 import asyncio
 import signal
 
-from kubernetes_asyncio import config
+from kubernetes_asyncio import client, config
 
-from aiok8s.informers import factory
+from aiok8s.controller import builder, manager, reconcile
 
 
-class Handler:
-    async def on_add(self, obj):
-        print("added", obj.metadata.name)
+class Reconciler:
+    def __init__(self, cache):
+        self._cache = cache
 
-    async def on_update(self, old_obj, new_obj):
-        print("updated", old_obj.metadata.name)
-
-    async def on_delete(self, obj):
-        print("deleted", obj.metadata.name)
+    async def reconcile(self, request):
+        try:
+            pod = await self._cache.get(request.namespaced_name, client.V1Pod)
+        except KeyError:
+            print(
+                f"{request.namespaced_name.name}/{request.namespaced_name.name} deleted"
+            )
+        else:
+            print(
+                f"{pod.metadata.namespace}/{pod.metadata.name}: ip", pod.status.pod_ip
+            )
+        return reconcile.Result()
 
 
 async def _run():
     await config.load_kube_config()
-    informer_factory = factory.new(namespace="kube-system")
-    pod_informer = informer_factory.pods().informer()
-    await pod_informer.add_event_handler(Handler())
+    mgr = manager.new()
+    await builder.build_controller(
+        mgr, Reconciler(mgr.get_cache()), api_type=client.V1Pod
+    )
+    task = asyncio.ensure_future(mgr.start())
 
-    stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for signal_ in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(signal_, stop.set)
+        loop.add_signal_handler(signal_, task.cancel)
 
-    informer_factory.start(stop)
-    await informer_factory.wait_for_cache_sync()
-    await informer_factory.join()
+    try:
+        await task
+    except asyncio.CancelledError:
+        print("\nInterrupted...")
 
 
 if __name__ == "__main__":
