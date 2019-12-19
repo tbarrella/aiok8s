@@ -144,9 +144,10 @@ class LeaderElector:
             "acquireTime": now,
         }
         try:
-            old_leader_election_record, old_leader_election_raw_record = (
-                await self._config.lock.get()
-            )
+            (
+                old_leader_election_record,
+                old_leader_election_raw_record,
+            ) = await self._config.lock.get()
         except asyncio.CancelledError:
             raise
         except Exception as e:
