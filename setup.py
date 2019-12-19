@@ -5,7 +5,7 @@ with open("README.md") as f:
 
 setuptools.setup(
     name="aiok8s",
-    version="0.0.1",
+    version="0.0.2",
     author="Taylor Barrella",
     author_email="tbarrella@gmail.com",
     description="asyncio client tools for Kubernetes",
