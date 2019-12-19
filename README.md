@@ -9,6 +9,6 @@ Most of the code is directly translated from and attributed to
 [`controller-runtime`](https://github.com/kubernetes-sigs/controller-runtime).
 This approach is taken to help ensure that the logic is battle-tested and
 reduce overhead in maintaining the library. It's meant to replicate only some
-of the most desirable tools of the library, not all of it.
+of the most desirable APIs of the Go libraries, not all of them.
 
 This is in early development. APIs may be adjusted or even removed.
