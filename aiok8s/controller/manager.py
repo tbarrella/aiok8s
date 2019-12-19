@@ -14,12 +14,12 @@
 
 import asyncio
 
-from aiok8s.controller import cache
+from aiok8s.controller import cache as _cache
 
 
 def new():
-    cache_ = cache.new()
-    return _ControllerManager(cache=cache_)
+    cache = _cache.new()
+    return _ControllerManager(cache=cache)
 
 
 class _ControllerManager:

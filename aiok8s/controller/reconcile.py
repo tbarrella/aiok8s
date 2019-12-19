@@ -15,11 +15,15 @@
 from typing import NamedTuple
 
 
+class NamespacedName(NamedTuple):
+    namespace: str
+    name: str
+
+
 class Result(NamedTuple):
     requeue: bool = False
     requeue_after: float = 0
 
 
 class Request(NamedTuple):
-    namespace: str
-    name: str
+    namespaced_name: NamespacedName

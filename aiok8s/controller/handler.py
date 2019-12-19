@@ -25,14 +25,20 @@ class EnqueueRequestForObject:
             logger.error("CreateEvent received with no metadata")
             return
         await queue.add(
-            reconcile.Request(name=event.meta.name, namespace=event.meta.namespace)
+            reconcile.Request(
+                reconcile.NamespacedName(
+                    name=event.meta.name, namespace=event.meta.namespace
+                )
+            )
         )
 
     async def update(self, event, queue):
         if event.meta_old:
             await queue.add(
                 reconcile.Request(
-                    name=event.meta_old.name, namespace=event.meta_old.namespace
+                    reconcile.NamespacedName(
+                        name=event.meta_old.name, namespace=event.meta_old.namespace
+                    )
                 )
             )
         else:
@@ -41,7 +47,9 @@ class EnqueueRequestForObject:
         if event.meta_new:
             await queue.add(
                 reconcile.Request(
-                    name=event.meta_new.name, namespace=event.meta_new.namespace
+                    reconcile.NamespacedName(
+                        name=event.meta_new.name, namespace=event.meta_new.namespace
+                    )
                 )
             )
         else:
@@ -52,5 +60,9 @@ class EnqueueRequestForObject:
             logger.error("DeleteEvent received with no metadata")
             return
         await queue.add(
-            reconcile.Request(name=event.meta.name, namespace=event.meta.namespace)
+            reconcile.Request(
+                reconcile.NamespacedName(
+                    name=event.meta.name, namespace=event.meta.namespace
+                )
+            )
         )

@@ -113,7 +113,7 @@ class _Controller:
             raise
         except Exception:
             await self.queue.add_rate_limited(obj)
-            logger.error("Reconciler error")
+            logger.exception("Reconciler error")
             return False
         if result.requeue_after:
             self.queue.forget(obj)
