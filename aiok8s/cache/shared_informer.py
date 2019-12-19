@@ -78,6 +78,7 @@ class _SharedIndexInformer:
         self._clock = real_clock
         self._started = False
         self._stopped = False
+        self._controller = None
         self._started_lock = asyncio.Lock()
         self._block_deltas = asyncio.Lock()
 
