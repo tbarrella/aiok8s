@@ -16,11 +16,9 @@ import asyncio
 import random
 from typing import Any, NamedTuple
 
-from kubernetes_asyncio import watch
-from kubernetes_asyncio.client import api
-
 from aiok8s.cache import index, list_watch, shared_informer
 from aiok8s.controller import _cache_reader
+from aiok8s.controller import client as _client
 
 
 class MapEntry(NamedTuple):
@@ -88,29 +86,22 @@ class _SpecificInformersMap:
 
 def _create_structured_list_watch(gvk, ip):
     async def list_func(options):
-        lister = _get_lister(ip)
+        client = _client.rest_client_for_gvk(gvk)
+        lister = client._get_lister(ip._namespace)
         kwargs = _get_kwargs(ip, options)
         return await lister(**kwargs)
 
     async def watch_func(options):
-        lister = _get_lister(ip)
+        client = _client.rest_client_for_gvk(gvk)
+        watcher = client._get_watcher(ip._namespace)
         kwargs = _get_kwargs(ip, options)
-        return watch.Watch().stream(lister, **kwargs)
+        return watcher(**kwargs)
 
     return list_watch.ListWatch(list_func, watch_func)
 
 
 def _resync_period(resync):
     return lambda: resync * (random.random() / 5 * 0.9)
-
-
-# TODO: Generalize
-def _get_lister(ip):
-    core = api.CoreV1Api()
-    if ip._namespace:
-        return core.list_namespaced_pod
-    else:
-        return core.list_pod_for_all_namespaces
 
 
 def _get_kwargs(ip, options):

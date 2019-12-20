@@ -76,7 +76,7 @@ async def _run():
     try:
         await task
     except asyncio.CancelledError:
-        print("\nInterrupted...")
+        print()
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from aiok8s.controller import _deleg_map
-from aiok8s.runtime import schema
+from aiok8s.controller import client as _client
 
 _DEFAULT_RESYNC_TIME = 10 * 3600
 
@@ -32,8 +32,7 @@ class _InformerCache:
         self._informers_map = informers_map
 
     async def get(self, key, out):
-        # TODO: Generalize
-        gvk = schema.GroupVersionKind("", "v1", "Pod")
+        gvk = _client.gvk_for_object(out)
         started, cache = await self._informers_map.get(gvk, out)
         if not started:
             raise CacheNotStartedError
@@ -43,8 +42,7 @@ class _InformerCache:
         pass
 
     async def get_informer(self, obj):
-        # TODO: Generalize
-        gvk = schema.GroupVersionKind("", "v1", "Pod")
+        gvk = _client.gvk_for_object(obj)
         _, informer = await self._informers_map.get(gvk, obj)
         return informer.informer
 
